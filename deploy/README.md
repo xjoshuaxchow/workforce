@@ -74,3 +74,9 @@ sudo docker compose exec whatsapp-api node dist/cli.js api-key
 ## 可以傳給公司管理員
 
 請替 Workforce 分配一個子網域並指向這台 testing server 的 HTTPS 入口，配置 TLS 憑證及現有 Nginx 轉送至新 Workforce web。AMS/API 透過相同入口使用；Meta webhook /webhooks/whatsapp、Twilio 回調 /integrations/twilio/ 及音檔 /media/voice/ 需供外部存取。資料庫與 WhatsApp /v1 API 保持 Docker 內網，不新增公網資料庫或 API 專用連接埠。現有 Nginx 本身是容器，請協調它與新 web 的 Docker 網路，上游不能直接使用該容器自己的127.0.0.1。
+
+## PostgreSQL 首次啟動的健康檢查
+
+資料庫健康檢查明確使用 TCP 127.0.0.1:5432。官方 PostgreSQL 容器首次初始化時會啟動暫時的 Unix socket-only server；只檢查 socket 會提早標記 healthy，令遷移容器遇到 ECONNREFUSED。
+
+可在已建置 API 映像的開發環境執行 `python3 test/docker-readiness.py`，它會在唯一命名的一次性 stack 延遲初始化，以驗證遷移確實等到 TCP 就緒；完成後只清理該測試 stack 的 volumes。

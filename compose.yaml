@@ -63,7 +63,7 @@ services:
     networks: [database]
     mem_limit: 192m
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U workforce -d workforce]
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -p 5432 -U workforce -d workforce]
       interval: 3s
       timeout: 3s
       retries: 30
@@ -142,7 +142,7 @@ services:
     depends_on:
       whatsapp-init: {condition: service_completed_successfully}
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U whatsapp -d whatsapp]
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -p 5432 -U whatsapp -d whatsapp]
       interval: 3s
       timeout: 3s
       retries: 30
