@@ -23,7 +23,7 @@
 - [x] Import Git-visible sources into a fresh repository; capture a private SHA256 manifest.
 - [x] Add root documentation/commands/audit, update relative paths and local instructions.
 - [x] Run source/secret exclusion audits, build and existing unit/integration/browser verification.
-- [ ] Independent review, fix material findings, commit and publish the initial main branch.
+- [x] Independent review, fix material findings, commit and publish the initial main branch.
 
 ## Ledger
 
@@ -34,3 +34,5 @@
 - Review fix: root Compose entry points use the dedicated workforce-whatsapp project, protecting the original stack. Two fake-Docker regression cases failed before the fix, then passed. Root docs explain the 8080 port and separate volume migration, root-only workflow discovery and fresh-clone API setup.
 
 - Final checks: root 2 + AMS 7 + API 58 + WhatsApp 33 unit cases passed; builds passed; API integration 158 passed, 1 opt-in real-engine skip; browser 26 passed. Staged 218-file repository and exact-secret scans passed. All 47 upstream files unchanged. Temporary test-only environment removed after validation.
+
+- Published initial import 5f78df5 to origin/main. The local checkout is handed over on main tracking origin/main. Original directories and their live processes remain in use; private settings, encryption key and local speech runtime must be migrated and verified before deleting them.
