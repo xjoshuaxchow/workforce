@@ -1,0 +1,91 @@
+name: whatsapp-microservice
+x-app: &app
+  image: whatsapp-microservice:local
+  pull_policy: never
+  init: true
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-env
+    NODE_ENV: production
+    PGHOST: db
+    PGPORT: "5432"
+    PGUSER: whatsapp
+    PGDATABASE: whatsapp
+    CONFIG_PATH: /run/service-config
+    WORKER_CONCURRENCY: "2"
+    SEND_INTERVAL_MS: "200"
+    RECIPIENT_INTERVAL_MS: "6000"
+  volumes:
+    - service_config:/run/service-config:ro
+    - media_data:/data/media
+  networks: [backend, outbound]
+  stop_grace_period: 45s
+
+services:
+  init:
+    <<: *app
+    build: .
+    user: "0:0"
+    restart: "no"
+    command: [node, dist/cli.js, init]
+    volumes:
+      - service_config:/run/service-config
+      - media_data:/data/media
+    networks: [backend]
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: whatsapp
+      POSTGRES_DB: whatsapp
+      POSTGRES_PASSWORD_FILE: /run/service-config/postgres-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - service_config:/run/service-config:ro
+    networks: [backend]
+    depends_on:
+      init: { condition: service_completed_successfully }
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U whatsapp -d whatsapp"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  migrate:
+    <<: *app
+    restart: "no"
+    command: [node, dist/cli.js, migrate]
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+  api:
+    <<: *app
+    ports: ["8080:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: [CMD, node, dist/cli.js, health]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+  worker:
+    <<: *app
+    command: [node, dist/worker-main.js]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: [CMD, node, dist/cli.js, worker-health]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+
+volumes:
+  postgres_data:
+  media_data:
+  service_config:
+networks:
+  backend:
+    internal: true
+  outbound:

@@ -1,0 +1,2862 @@
+{
+  "note": "Test-name references only. This is not a pass report or proof that an entire AC has been verified.",
+  "sources": [
+    {
+      "file": "01-access-control.md",
+      "sha256": "0021c81d741d2dbcf36cea54857b5ca24ee3ac43f33a9e1d5ed43e7e99bf1080"
+    },
+    {
+      "file": "02-staff.md",
+      "sha256": "cb0be7cff09eac96867dc8f4a06c0a5c9fb143dc4107066038b61488366e6178"
+    },
+    {
+      "file": "03-sites-and-linkage.md",
+      "sha256": "c89c477cf9a9ee08911980a708798d5668758c88eb1afda0dee87e946870be6e"
+    },
+    {
+      "file": "04-requests.md",
+      "sha256": "b3e2e880914f68ac6fe99a91f2957986484defe303b9a8234453a6c10fca1ca4"
+    },
+    {
+      "file": "05-roster.md",
+      "sha256": "77d724310c3826dce70fac1449a617acbcbedfaa49d0f8de87185899fb3a41ea"
+    },
+    {
+      "file": "06-channels-and-responses.md",
+      "sha256": "aedf34446111b3816832ddf280fbdea746a11114c66439a95fb3d48306fd114f"
+    },
+    {
+      "file": "07-integration.md",
+      "sha256": "02ad76042e32b45e77c62cc7d9b59ac1caa9a176e19fb5db4cf14d58d215af44"
+    },
+    {
+      "file": "08-platform-and-dashboard.md",
+      "sha256": "c629aafd65428e4a7427f0f4747c96f1fed59ff9c6739c57823b6bc88d861c08"
+    },
+    {
+      "file": "README.md",
+      "sha256": "92b17d9d4a11e92a4edda43babec2b250db4a90b3efa094b4518c10f249ec977"
+    }
+  ],
+  "baseline_count": 316,
+  "with_test_references": 135,
+  "without_test_references": 181,
+  "criteria": [
+    {
+      "id": "AC-U-01-01",
+      "source": "docs/specs/01-access-control.md",
+      "line": 14,
+      "criterion": "An active user `a@x.com` with password `P` | They log in with `A@X.com` / `P` | Login succeeds and a session token is returned",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-02",
+      "source": "docs/specs/01-access-control.md",
+      "line": 15,
+      "criterion": "An active user | They log in with a wrong password | `401`, generic message \"Invalid email or password\" (does not reveal which was wrong)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-03",
+      "source": "docs/specs/01-access-control.md",
+      "line": 16,
+      "criterion": "No user with email `z@x.com` | Someone logs in as `z@x.com` | `401`, same generic message as AC-U-01-02",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-04",
+      "source": "docs/specs/01-access-control.md",
+      "line": 17,
+      "criterion": "A deactivated user | They log in with correct credentials | `401`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-05",
+      "source": "docs/specs/01-access-control.md",
+      "line": 18,
+      "criterion": "No token | Any protected endpoint is called | `401`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-06",
+      "source": "docs/specs/01-access-control.md",
+      "line": 19,
+      "criterion": "A user is created | The DB record is read | The password field is a hash, not the plain password",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-01-07",
+      "source": "docs/specs/01-access-control.md",
+      "line": 20,
+      "criterion": "A logged-in user | They log out | Their token no longer works (`401`)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-02-01",
+      "source": "docs/specs/01-access-control.md",
+      "line": 33,
+      "criterion": "A user is created without a role | — | `400` (role required)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-02-02",
+      "source": "docs/specs/01-access-control.md",
+      "line": 34,
+      "criterion": "A user is created with role `superuser` | — | `400` (invalid role)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-02-03",
+      "source": "docs/specs/01-access-control.md",
+      "line": 35,
+      "criterion": "An admin | They call any endpoint for any site | Allowed",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-02-04",
+      "source": "docs/specs/01-access-control.md",
+      "line": 36,
+      "criterion": "A site manager | They call an admin-only endpoint (create staff, create site, manage users, manage linkage) | `403`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-03-01",
+      "source": "docs/specs/01-access-control.md",
+      "line": 44,
+      "criterion": "Admin, site manager M, sites S1, S2 | Admin assigns M to S1 and S2 | M's site list = [S1, S2]",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-03-02",
+      "source": "docs/specs/01-access-control.md",
+      "line": 45,
+      "criterion": "M assigned to S1 | Admin assigns M to S1 again | No duplicate; still [S1] (idempotent)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-03-03",
+      "source": "docs/specs/01-access-control.md",
+      "line": 46,
+      "criterion": "M assigned to S1, S2 | Admin removes S2 | M's site list = [S1]",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-03-04",
+      "source": "docs/specs/01-access-control.md",
+      "line": 47,
+      "criterion": "A site manager | They try to assign themselves to a site | `403`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-03-05",
+      "source": "docs/specs/01-access-control.md",
+      "line": 48,
+      "criterion": "An admin user | Admin tries to assign sites to them | `400` (site assignment only applies to site managers)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-04-01",
+      "source": "docs/specs/01-access-control.md",
+      "line": 59,
+      "criterion": "M assigned to S1; requests exist for S1 and S2 | M lists requests | Only S1 requests are returned",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-04-02",
+      "source": "docs/specs/01-access-control.md",
+      "line": 60,
+      "criterion": "M assigned to S1 | M opens a request of S2 by ID | `404` (do not reveal it exists)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-04-03",
+      "source": "docs/specs/01-access-control.md",
+      "line": 61,
+      "criterion": "M assigned to S1 | M creates a request for S2 | `403`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-04-04",
+      "source": "docs/specs/01-access-control.md",
+      "line": 62,
+      "criterion": "M assigned to S1 | M creates / edits / cancels a shift at S2 | `403`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-04-05",
+      "source": "docs/specs/01-access-control.md",
+      "line": 63,
+      "criterion": "M was assigned to S1, then removed | M lists requests | S1 requests are no longer returned",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-05-01",
+      "source": "docs/specs/01-access-control.md",
+      "line": 75,
+      "criterion": "M assigned to S1; staff A linked to S1, B linked only to S2 | M lists staff | A is returned, B is not",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-05-02",
+      "source": "docs/specs/01-access-control.md",
+      "line": 76,
+      "criterion": "Same as above | M opens B by ID | `404`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-05-03",
+      "source": "docs/specs/01-access-control.md",
+      "line": 77,
+      "criterion": "A linked to S1 and S2; A has a shift at S2 | M (S1 only) views A's roster | The S2 shift appears as `{ type: \"busy\", start, end }` with no site details",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-U-05-04",
+      "source": "docs/specs/01-access-control.md",
+      "line": 78,
+      "criterion": "A linked to S1 only | Admin unlinks A from S1 | M can no longer see A",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 30,
+      "criterion": "Admin | Creates staff with name + mobile only | `201`; defaults applied: language `en`, channel `whatsapp`, status `active`, opt-in `false`",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js",
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 31,
+      "criterion": "Admin | Creates staff with no name | `400` field `name`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 32,
+      "criterion": "Admin | Creates staff with name of only spaces | `400` field `name`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 33,
+      "criterion": "Staff with mobile `+6591234567` exists | Admin creates another staff with mobile `+65 9123-4567` | `409` duplicate mobile (normalised before comparing)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-05",
+      "source": "docs/specs/02-staff.md",
+      "line": 34,
+      "criterion": "Inactive staff with mobile X exists | Admin creates new staff with mobile X | `409` (uniqueness includes inactive)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-06",
+      "source": "docs/specs/02-staff.md",
+      "line": 35,
+      "criterion": "Admin | Edits staff name | `200`; audit log has before/after",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-07",
+      "source": "docs/specs/02-staff.md",
+      "line": 36,
+      "criterion": "Admin | Deactivates staff | Status becomes `inactive`; record is still readable",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-08",
+      "source": "docs/specs/02-staff.md",
+      "line": 37,
+      "criterion": "Site manager | Calls create / edit / deactivate | `403`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-01-09",
+      "source": "docs/specs/02-staff.md",
+      "line": 38,
+      "criterion": "Staff has a future confirmed shift | Admin deactivates them | Deactivation succeeds **and** response includes a warning listing the future shifts (shifts are not auto-cancelled)",
+      "test_references": [
+        "test/integration/roster.test.js",
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 46,
+      "criterion": "— | Mobile `91234567` with no country code | `400` (must include country code)",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 47,
+      "criterion": "— | Mobile `+65 9123 4567` | Stored as `+6591234567`",
+      "test_references": [
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 48,
+      "criterion": "— | Mobile `hello` | `400` field `mobile`",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 49,
+      "criterion": "— | `preferred_channel = sms` | `400` (not supported in P0)",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-05",
+      "source": "docs/specs/02-staff.md",
+      "line": 50,
+      "criterion": "— | `language = english` | `400` (must be ISO 639-1 code)",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-02-06",
+      "source": "docs/specs/02-staff.md",
+      "line": 51,
+      "criterion": "— | Landline omitted | Accepted; landline is `null`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-03-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 59,
+      "criterion": "Active staff | Status set to `on_leave` | Saved; staff is excluded from new request candidates",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-03-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 60,
+      "criterion": "Staff `blocked` | Candidates are generated for a request | Staff is excluded",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-03-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 61,
+      "criterion": "Staff `inactive` | Candidates are generated | Staff is excluded",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-03-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 62,
+      "criterion": "Staff becomes `on_leave` while a request is already being sent | Next attempt for that staff is due | Attempt is not sent; candidate status becomes `skipped` with reason `staff_not_active`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-03-05",
+      "source": "docs/specs/02-staff.md",
+      "line": 63,
+      "criterion": "— | Status set to `deleted` | `400` invalid status",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-04-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 71,
+      "criterion": "Staff with opt-in false | Admin sets opt-in true with source `paper_form` | Saved; `whatsapp_opt_in_at` = now",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-04-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 72,
+      "criterion": "— | Admin sets opt-in true **without** a source | `400` field `whatsapp_opt_in_source`",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-04-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 73,
+      "criterion": "Staff opted in | Admin sets opt-in false | Saved; opt-in timestamp kept in audit log; staff no longer WhatsApp-contactable",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-04-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 74,
+      "criterion": "Staff opt-in false, active | Contactability is checked | WhatsApp: no; Voice: yes",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 89,
+      "criterion": "Valid CSV with 3 rows | Admin imports | `200`, 3 staff created, response `{ created: 3 }`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 90,
+      "criterion": "CSV where row 2 has invalid mobile | Admin imports | `400`, nothing created, errors `[{ row: 2, field: \"mobile\", message }]`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 91,
+      "criterion": "CSV with the same mobile on rows 1 and 3 | Admin imports | `400`, error on row 3 \"duplicate in file\"",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 92,
+      "criterion": "Mobile on row 1 already exists in DB | Admin imports | `400`, error on row 1 \"already exists\"",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-05",
+      "source": "docs/specs/02-staff.md",
+      "line": 93,
+      "criterion": "CSV missing the `mobile` column | Admin imports | `400` \"missing required column: mobile\"",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-06",
+      "source": "docs/specs/02-staff.md",
+      "line": 94,
+      "criterion": "CSV with extra unknown column | Admin imports | Unknown column ignored; import succeeds",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-07",
+      "source": "docs/specs/02-staff.md",
+      "line": 95,
+      "criterion": "CSV with 5,001 rows | Admin imports | `400` too many rows",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-08",
+      "source": "docs/specs/02-staff.md",
+      "line": 96,
+      "criterion": "Row has `whatsapp_opt_in = true` and empty source | Admin imports | Source defaults to `import`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-05-09",
+      "source": "docs/specs/02-staff.md",
+      "line": 97,
+      "criterion": "Site manager | Imports | `403`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-01",
+      "source": "docs/specs/02-staff.md",
+      "line": 105,
+      "criterion": "Staff \"Anna Lee\", \"Ben Tan\" | Search `anna` | Returns Anna Lee (case-insensitive, partial match)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-02",
+      "source": "docs/specs/02-staff.md",
+      "line": 106,
+      "criterion": "Staff with mobile `+6591234567` | Search `9123` | Returns that staff (matches mobile digits)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-03",
+      "source": "docs/specs/02-staff.md",
+      "line": 107,
+      "criterion": "Staff linked to S1 and S2 | Filter `site=S1` | Only staff linked to S1",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-04",
+      "source": "docs/specs/02-staff.md",
+      "line": 108,
+      "criterion": "Mixed statuses | Filter `status=active` | Only active staff",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-05",
+      "source": "docs/specs/02-staff.md",
+      "line": 109,
+      "criterion": "Default list | No status filter | Excludes `inactive` staff",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-06",
+      "source": "docs/specs/02-staff.md",
+      "line": 110,
+      "criterion": "120 staff | List with no page params | 50 returned, `total = 120`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-S-06-07",
+      "source": "docs/specs/02-staff.md",
+      "line": 111,
+      "criterion": "Site manager (S1 only) | Filter `site=S2` | Empty list (cannot see S2-only staff)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-01",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 19,
+      "criterion": "Admin | Creates site with code, name, timezone | `201`, status `active`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-02",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 20,
+      "criterion": "Site with code `NORTH` exists | Admin creates another with code `north` | `409` (codes compared uppercase)",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js",
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-03",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 21,
+      "criterion": "Admin | Creates site with code `a b` | `400` field `code`",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-04",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 22,
+      "criterion": "Admin | Deactivates site | Status `inactive`; existing data readable",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-05",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 23,
+      "criterion": "Site is inactive | Anyone creates a request or shift there | `409` \"site is inactive\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-06",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 24,
+      "criterion": "Site has open requests | Admin deactivates site | `409` \"site has open requests\" — cancel them first",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-01-07",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 25,
+      "criterion": "Site manager | Creates / edits a site | `403`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-02-01",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 33,
+      "criterion": "— | Timezone `Mars/Base` | `400` field `timezone`",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-02-02",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 34,
+      "criterion": "Site in `Asia/Singapore` (UTC+8) | A shift is entered as 07:00 local | Stored as 23:00 UTC previous day; displayed as 07:00",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-SI-02-03",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 35,
+      "criterion": "Site with shifts | Admin changes the timezone | `409` if the site has future shifts or open requests (avoid silently moving times)",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-01",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 47,
+      "criterion": "Staff A, site S1 | Admin links A to S1 | Link exists, active",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-02",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 48,
+      "criterion": "A already linked to S1 | Admin links again | No duplicate; `200` (idempotent)",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-03",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 49,
+      "criterion": "A linked to S1 | Admin unlinks | Link inactive; A is no longer a candidate for S1 requests",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-04",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 50,
+      "criterion": "A unlinked from S1 | Admin links again | Same link reactivated",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-05",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 51,
+      "criterion": "A has future shifts at S1 | Admin unlinks | Succeeds with warning listing those shifts (not cancelled)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-06",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 52,
+      "criterion": "Inactive site | Admin links staff | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-01-07",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 53,
+      "criterion": "Site manager | Links / unlinks | `403`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-02-01",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 61,
+      "criterion": "A, B linked to S1; C unlinked | List staff of S1 | [A, B]",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-02-02",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 62,
+      "criterion": "A linked to S1, S2 | List sites of A | [S1, S2]",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-02-03",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 63,
+      "criterion": "Site manager of S1 | Lists staff of S1 | Allowed",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-02-04",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 64,
+      "criterion": "Site manager of S1 | Lists staff of S2 | `404`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-03-01",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 74,
+      "criterion": "Valid CSV, 4 rows | Admin imports | 4 links created; response `{ linked: 4, already_linked: 0 }`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-03-02",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 75,
+      "criterion": "Row with unknown site code | Admin imports | `400`, error on that row, nothing linked",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-03-03",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 76,
+      "criterion": "Row with unknown mobile | Admin imports | `400`, error on that row, nothing linked",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-03-04",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 77,
+      "criterion": "Some rows already linked | Admin imports | Succeeds; they are counted in `already_linked`",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-L-03-05",
+      "source": "docs/specs/03-sites-and-linkage.md",
+      "line": 78,
+      "criterion": "Admin | Multi-select 10 staff → link to S1 | 10 links created in one transaction",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 60,
+      "criterion": "Site manager of S1 | Creates request for S1, tomorrow 07:00–15:00, headcount 3, channels [whatsapp] | `201`, status `draft`, `deadline_at` = `start_at`",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 61,
+      "criterion": "— | `start_at` in the past | `400` field `start_at`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 62,
+      "criterion": "— | `end_at` ≤ `start_at` | `400` field `end_at`",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 63,
+      "criterion": "— | Duration 25 hours | `400` (max 24h)",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 64,
+      "criterion": "— | Headcount 0 or 51 | `400` field `headcount`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 65,
+      "criterion": "— | `channels = []` | `400` field `channels`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-07",
+      "source": "docs/specs/04-requests.md",
+      "line": 66,
+      "criterion": "— | `deadline_at` after `start_at` | `400` field `deadline_at`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-08",
+      "source": "docs/specs/04-requests.md",
+      "line": 67,
+      "criterion": "— | Times entered 22:00–06:00 (crosses midnight) at a site in `Asia/Singapore` | Accepted; stored in UTC; end is next day",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-09",
+      "source": "docs/specs/04-requests.md",
+      "line": 68,
+      "criterion": "Draft request whose `start_at` has since passed | User sends it | `409` \"start time has passed\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-01-10",
+      "source": "docs/specs/04-requests.md",
+      "line": 69,
+      "criterion": "Open request | User edits time / headcount | `409` (only cancel allowed once open)",
+      "test_references": [
+        "test/integration/local-completion.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 85,
+      "criterion": "S1 has linked staff A (active, opted in), B (active, opted in) | Request for S1, channels [whatsapp] | Candidates = [A, B]",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 86,
+      "criterion": "C linked to S2 only | Request for S1 | C is not a candidate (not in exclusion list either — not linked)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 87,
+      "criterion": "D linked to S1, `on_leave` | Request for S1 | D excluded, reason `not_active`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 88,
+      "criterion": "E linked to S1, active, opt-in false | Channels [whatsapp] | E excluded, reason `not_contactable`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 89,
+      "criterion": "E as above | Channels [whatsapp, voice] | E is a candidate (voice only)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 90,
+      "criterion": "F linked to S1, has shift at S2 overlapping the request | Request for S1 | F excluded, reason `overlapping_shift`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-07",
+      "source": "docs/specs/04-requests.md",
+      "line": 91,
+      "criterion": "G has shift ending exactly at request start | Request for S1 | G is a candidate (G-02 half-open)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-08",
+      "source": "docs/specs/04-requests.md",
+      "line": 92,
+      "criterion": "Linked but unlinked (`active = false`) staff H | Request for S1 | H not a candidate",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-02-09",
+      "source": "docs/specs/04-requests.md",
+      "line": 93,
+      "criterion": "No eligible staff | Request created | `201` with 0 candidates; sending it returns `409` \"no candidates\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-03-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 101,
+      "criterion": "Draft request with candidates [A, B] | User removes B | Candidates = [A]",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-03-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 102,
+      "criterion": "Draft; staff C linked to S1, eligible, previously removed | User adds C | Candidates = [A, C]",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-03-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 103,
+      "criterion": "Draft; staff F has overlapping shift | User adds F | `409` reason `overlapping_shift`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-03-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 104,
+      "criterion": "Draft; staff C not linked to S1 | User adds C | `409` reason `not_linked`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-03-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 105,
+      "criterion": "Open request | User adds or removes a candidate | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 115,
+      "criterion": "Eligible staff A | User creates direct request for A | `201`, candidates = [A], headcount 1",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 116,
+      "criterion": "— | Direct request with headcount 3 | Headcount stored as 1",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 117,
+      "criterion": "— | Direct request with no `staff_id` | `400`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 118,
+      "criterion": "A has overlapping shift | Direct request for A | `409` reason `overlapping_shift`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 119,
+      "criterion": "A accepts | — | Request `filled`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-04-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 120,
+      "criterion": "A declines | — | Request stays `open` until deadline, then `expired` (manager sees \"declined\")",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 134,
+      "criterion": "Channels [whatsapp], 2 candidates | Request sent | 2 WhatsApp attempts, 0 calls",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 135,
+      "criterion": "Channels [voice], 2 candidates | Request sent | 2 call attempts, 0 WhatsApp",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 136,
+      "criterion": "Channels [whatsapp, voice], candidate opted in | Request sent | 1 WhatsApp + 1 call attempt for that candidate",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 137,
+      "criterion": "Channels [whatsapp, voice], candidate not opted in | Request sent | Only 1 call attempt",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 138,
+      "criterion": "Both attempts queued; candidate accepts via WhatsApp before the call is placed | — | Call attempt status `cancelled`; Messaging Service never receives it",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-05-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 139,
+      "criterion": "Candidate replies on WhatsApp **and** presses 1 on the call | — | Only the first is acted on (A-05); one assignment",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 154,
+      "criterion": "Draft request, 5 candidates | User sends | Status `open`; 5 candidates `contacting`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 155,
+      "criterion": "Headcount 2, A accepts | — | A `accepted`, 1 assignment, request still `open`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 156,
+      "criterion": "Headcount 2; A, B, C accept in that order | — | A, B `accepted`; C `too_late`; exactly 2 assignments",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 157,
+      "criterion": "Headcount 1; A and B accept **concurrently** | Both processed in parallel | Exactly 1 assignment; the other is `too_late`",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 158,
+      "criterion": "A declines | — | A `declined`; no assignment; no message sent",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 159,
+      "criterion": "A accepts | — | A receives confirmation (F-01)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-07",
+      "source": "docs/specs/04-requests.md",
+      "line": 160,
+      "criterion": "C is `too_late` | — | C receives \"already filled\" (F-02)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-06-08",
+      "source": "docs/specs/04-requests.md",
+      "line": 161,
+      "criterion": "A declined, then later accepts | — | Ignored (A-05); A stays `declined`; logged",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-07-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 169,
+      "criterion": "Headcount 2, 1 accepted | Second accept | Request `filled`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-07-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 170,
+      "criterion": "Request filled | — | Candidates still `pending` → `skipped`; all queued attempts → `cancelled`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-07-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 171,
+      "criterion": "Request filled; D is `contacting` | D declines | D `declined`; nothing else changes",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-07-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 172,
+      "criterion": "Request filled | Expiry job runs at deadline | Status stays `filled` (no change)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-08-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 180,
+      "criterion": "Open request, headcount 3, 1 accepted | Clock reaches `deadline_at` | Status `expired`; `contacting` candidates → `no_response`; queued attempts cancelled",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-08-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 181,
+      "criterion": "Expired request with 1 accepted | — | That assignment and its roster shift **remain** confirmed",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-08-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 182,
+      "criterion": "Expired request | Candidate accepts afterwards | Candidate `too_late`; receives F-02",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-08-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 183,
+      "criterion": "Open request | Clock is 1 second before deadline | Status still `open`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 191,
+      "criterion": "Draft request | User cancels | `cancelled`; no messages sent",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 192,
+      "criterion": "Open request with 2 accepted | User cancels | `cancelled`; both assignments `cancelled`; their roster shifts `cancelled`; both receive F-03",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 193,
+      "criterion": "Open request | User cancels | Queued attempts cancelled; contacted-but-unanswered candidates receive nothing",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 194,
+      "criterion": "Cancelled request | Candidate accepts afterwards | `too_late`; receives F-02",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 195,
+      "criterion": "Expired request | User cancels | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 196,
+      "criterion": "Filled request | User cancels | `cancelled`; same effects as AC-R-09-02",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-09-07",
+      "source": "docs/specs/04-requests.md",
+      "line": 197,
+      "criterion": "Request created from open shifts (RO-06), with 1 accepted | User cancels | The filled shift goes back to **open** (staff removed), not cancelled",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-01",
+      "source": "docs/specs/04-requests.md",
+      "line": 207,
+      "criterion": "Ranges 07:00–15:00 and 14:00–22:00 | Overlap check | `true`",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-02",
+      "source": "docs/specs/04-requests.md",
+      "line": 208,
+      "criterion": "Ranges 07:00–15:00 and 15:00–23:00 | Overlap check | `false`",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-03",
+      "source": "docs/specs/04-requests.md",
+      "line": 209,
+      "criterion": "Ranges 22:00–06:00 (+1 day) and 05:00–09:00 (+1 day) | Overlap check | `true`",
+      "test_references": [
+        "test/domain.test.js",
+        "test/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-04",
+      "source": "docs/specs/04-requests.md",
+      "line": 210,
+      "criterion": "A is a candidate on requests R1 (S1) and R2 (S2), overlapping times | A accepts R1, then accepts R2 | R1 accepted; on R2, A → `too_late` with reason `overlapping_shift` and receives F-02",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-05",
+      "source": "docs/specs/04-requests.md",
+      "line": 211,
+      "criterion": "A accepts R1 and R2 concurrently | Both processed in parallel | Exactly one assignment for A",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-R-10-06",
+      "source": "docs/specs/04-requests.md",
+      "line": 212,
+      "criterion": "A has a **cancelled** shift overlapping the request | Candidate selection | A is eligible (cancelled shifts don't count)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 43,
+      "criterion": "Site manager of S1, staff A eligible | Creates shift at S1 for A, tomorrow 07:00–15:00 | `201`, status `draft`, source `manual`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 44,
+      "criterion": "— | Creates shift with no staff | `201`, open shift (`staff_id = null`)",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 45,
+      "criterion": "— | `end_at` ≤ `start_at` | `400`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 46,
+      "criterion": "Draft shift | Change staff from A to B | Saved; overlap & eligibility checks run for B",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 47,
+      "criterion": "Draft shift | Cancel | Status `cancelled` (soft — G-05)",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-06",
+      "source": "docs/specs/05-roster.md",
+      "line": 48,
+      "criterion": "Completed shift | Edit or cancel | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-07",
+      "source": "docs/specs/05-roster.md",
+      "line": 49,
+      "criterion": "Cancelled shift | Edit | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-08",
+      "source": "docs/specs/05-roster.md",
+      "line": 50,
+      "criterion": "Published shift, `end_at` passed | Completion job runs | Status `completed`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-09",
+      "source": "docs/specs/05-roster.md",
+      "line": 51,
+      "criterion": "Draft shift, `end_at` passed | Completion job runs | Stays `draft` (never published → not completed)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-03-10",
+      "source": "docs/specs/05-roster.md",
+      "line": 52,
+      "criterion": "Shift start in the past | User creates it | Allowed (back-filling a record) but no notifications are ever sent for it",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-04-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 60,
+      "criterion": "Open shift | Assign staff A (eligible) | `staff_id = A`; status unchanged",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-04-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 61,
+      "criterion": "Shift with staff A, draft | Remove staff | Becomes open shift",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-04-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 62,
+      "criterion": "Open shift linked to an `open` request | User manually assigns staff | `409` \"shift is being filled by request\" — cancel request first",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-05-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 70,
+      "criterion": "Request **without** open shifts, at S1, 07:00–15:00 | A accepts | New shift: site S1, staff A, same times, status `confirmed`, source `request`, `request_id` set",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-05-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 71,
+      "criterion": "Headcount 3, 3 accept | — | 3 confirmed shifts",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-05-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 72,
+      "criterion": "A's assignment is cancelled (request cancelled) | — | A's shift `cancelled` (see AC-R-09-02)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 85,
+      "criterion": "2 open shifts at S1, 07:00–15:00 | Find staff | Draft request: S1, 07:00–15:00, headcount 2, `open_shift_ids` = both",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 86,
+      "criterion": "Open shifts with different times | Find staff | `400` \"shifts must have the same time\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 87,
+      "criterion": "Open shifts at different sites | Find staff | `400`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 88,
+      "criterion": "Shift already has staff | Find staff | `400` \"shift is not open\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 89,
+      "criterion": "Shift already linked to an `open` or `draft` request | Find staff again | `409`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-06",
+      "source": "docs/specs/05-roster.md",
+      "line": 90,
+      "criterion": "Request from shifts X (older), Y | A accepts | X gets A, status `confirmed`; Y still open",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-07",
+      "source": "docs/specs/05-roster.md",
+      "line": 91,
+      "criterion": "Same request | Request expires with only A accepted | Y stays open; Y can be used for a new \"Find staff\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-06-08",
+      "source": "docs/specs/05-roster.md",
+      "line": 92,
+      "criterion": "Same request, A accepted into X | Request cancelled | X back to open, A removed, A receives F-03 (see AC-R-09-07)",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 102,
+      "criterion": "S1 has shifts for A, B, and one open shift this week | Get roster for the week | Groups: A, B, `open`; each with their shifts",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 103,
+      "criterion": "A cancelled shift | Get roster | Not included",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 104,
+      "criterion": "Same | Get roster with `include_cancelled=true` | Included",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 105,
+      "criterion": "— | Range of 32 days | `400`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 106,
+      "criterion": "Shift 22:00–06:00 starting Monday | Week view | Shift appears on Monday (by start date in site timezone)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-06",
+      "source": "docs/specs/05-roster.md",
+      "line": 107,
+      "criterion": "Site manager of S1 | Get roster of S2 | `404`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-10-07",
+      "source": "docs/specs/05-roster.md",
+      "line": 108,
+      "criterion": "UI: week view | Click \"Next week\" | Shows the following 7 days",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-11-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 116,
+      "criterion": "A has shifts at S1 and S2 | Admin gets A's roster | Both shifts with site details",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-11-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 117,
+      "criterion": "Same | Site manager of S1 only gets A's roster | S1 shift full; S2 shift shown as `busy` with times only (AC-U-05-03)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-12-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 127,
+      "criterion": "Monday has 1 open shift, Tuesday has none | Get week roster | Summary: Monday `open_shifts: 1, understaffed: true`; Tuesday `open_shifts: 0, understaffed: false`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-12-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 128,
+      "criterion": "Open shift is filled via request | Get roster | That day's open count decreases by 1",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-16-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 138,
+      "criterion": "A has shift S1 07:00–15:00 | Create shift for A at S2 14:00–22:00 | `409` reason `overlapping_shift`, returns the conflicting shift (masked per U-05 if other site)",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-16-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 139,
+      "criterion": "Same | Create shift for A at S2 15:00–23:00 | `201`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-16-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 140,
+      "criterion": "A's earlier shift is cancelled | Create the overlapping shift | `201`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-16-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 141,
+      "criterion": "Two users assign A to overlapping shifts at the same moment | Both requests processed concurrently | Exactly one succeeds",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-16-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 142,
+      "criterion": "A has shift 07:00–15:00 | Edit that same shift to 08:00–16:00 | `200` (a shift does not conflict with itself)",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-17-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 160,
+      "criterion": "A not linked to S1 | Assign A to S1 shift | `409`, warnings `[not_linked]`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-17-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 161,
+      "criterion": "Same | Assign with `acknowledge_warnings: true` | `201`; audit log records acknowledged warning",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-17-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 162,
+      "criterion": "A `on_leave` | Assign | `409`, warnings `[on_leave]`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-17-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 163,
+      "criterion": "A `blocked` | Assign with `acknowledge_warnings: true` | `409` (blocked can't be overridden)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-17-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 164,
+      "criterion": "A not linked and on leave | Assign | Warnings `[not_linked, on_leave]`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 179,
+      "criterion": "A has 3 draft shifts, B has 1, plus 1 open shift in range | Publish | 5 shifts `published`; A gets 1 message listing 3 shifts; B gets 1 message; response `{ published: 5, notified: 2, not_notified: [] }`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 180,
+      "criterion": "C has a draft shift, not opted in | Publish | C's shift published; `not_notified: [C]`",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 181,
+      "criterion": "Range already published, no drafts | Publish again | `{ published: 0, notified: 0 }`; no messages",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 182,
+      "criterion": "A has a `confirmed` shift (from request) and a draft | Publish | Only the draft is listed in A's message",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 183,
+      "criterion": "Draft shift outside the range | Publish | Stays `draft`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-21-06",
+      "source": "docs/specs/05-roster.md",
+      "line": 184,
+      "criterion": "Site manager of S1 | Publishes S2 | `404`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-01",
+      "source": "docs/specs/05-roster.md",
+      "line": 202,
+      "criterion": "Published shift for A | Time changed 07:00 → 08:00 | A receives \"shift changed\" with both times",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-02",
+      "source": "docs/specs/05-roster.md",
+      "line": 203,
+      "criterion": "Published shift for A | Reassigned to B | A gets \"cancelled\", B gets \"new shift\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-03",
+      "source": "docs/specs/05-roster.md",
+      "line": 204,
+      "criterion": "Confirmed shift for A | Cancelled | A gets \"cancelled\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-04",
+      "source": "docs/specs/05-roster.md",
+      "line": 205,
+      "criterion": "Published shift | Only notes changed | No message",
+      "test_references": [
+        "test/integration/roster.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-05",
+      "source": "docs/specs/05-roster.md",
+      "line": 206,
+      "criterion": "Draft shift | Time changed | No message",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-06",
+      "source": "docs/specs/05-roster.md",
+      "line": 207,
+      "criterion": "Published shift that started yesterday | Edited | No message",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RO-22-07",
+      "source": "docs/specs/05-roster.md",
+      "line": 208,
+      "criterion": "A not WhatsApp-contactable | Their published shift is cancelled | Response includes `not_notified: [A]`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-01-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 57,
+      "criterion": "Request at S1 (`Asia/Singapore`) 2026-11-03 07:00–15:00 local | Offer built for Anna | Payload has template `shift_offer_v1` and the variables above",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-01-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 58,
+      "criterion": "Request 22:00–06:00 | Offer built | `end_time = \"06:00 (+1 day)\"`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-01-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 59,
+      "criterion": "Request with no message | Offer built | `message = \"\"`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-01-04",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 60,
+      "criterion": "Offer sent | — | Payload `to` is the staff `mobile` in E.164; `correlation_id` = attempt id",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-02-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 68,
+      "criterion": "Offer built | — | `options = [{ id: \"ACCEPT\", label: \"Yes\" }, { id: \"DECLINE\", label: \"No\" }]`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-03-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 76,
+      "criterion": "Attempt `sent` | Event `delivered` | Attempt `delivered`",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-03-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 77,
+      "criterion": "Attempt `read` | Late event `delivered` | Attempt stays `read`; event stored in history",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-03-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 78,
+      "criterion": "Attempt `sent` | Event `failed` (reason `not_on_whatsapp`) | Attempt `failed` with reason",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-03-04",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 79,
+      "criterion": "Candidate's only attempt fails | — | Candidate `failed`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-03-05",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 80,
+      "criterion": "Candidate has WhatsApp `failed` and voice still `queued`/`sent` | — | Candidate stays `contacting`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-04-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 88,
+      "criterion": "Offer attempt `read` | Event `reply`, `option_id = ACCEPT` | Attempt `replied`, response `accept`; accept flow runs (R-06)",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-04-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 89,
+      "criterion": "Same | `option_id = DECLINE` | Response `decline`; decline flow runs",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-04-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 90,
+      "criterion": "Same | Event `reply` with unknown `option_id` or free text | Stored; no state change (free-text parsing is P1)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-04-04",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 91,
+      "criterion": "— | Reply for a `correlation_id` we don't know | `200` (so the service doesn't retry forever); logged as `unmatched_event`",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-W-04-05",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 92,
+      "criterion": "Reply to a **follow-up** message (not an offer) | — | Stored; no state change",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-01-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 103,
+      "criterion": "Request as in AC-W-01-01 | Call payload built | Channel `voice`, `to` = mobile, script text with variables filled, `correlation_id` = attempt id",
+      "test_references": [
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-01-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 104,
+      "criterion": "Request 22:00–06:00 | Script built | Says \"to 6 AM the next day\" (spoken form of the time)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-02-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 112,
+      "criterion": "Call payload built | — | `options = [{ id: \"ACCEPT\", dtmf: \"1\" }, { id: \"DECLINE\", dtmf: \"2\" }]`, `repeat_dtmf: \"9\"`",
+      "test_references": [
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-02-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 113,
+      "criterion": "Call answered | Event `reply`, `option_id = ACCEPT` | Same effect as AC-W-04-01",
+      "test_references": [
+        "test/integration/pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-02-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 114,
+      "criterion": "Call answered | Event `reply`, `option_id = DECLINE` | Same effect as AC-W-04-02",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 122,
+      "criterion": "Call `sent` | Event `answered` | Attempt `answered`",
+      "test_references": [
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 123,
+      "criterion": "Call `sent` | Event `no_answer` | Attempt `no_answer`; candidate stays `contacting` until deadline (retry is P1)",
+      "test_references": [
+        "test/integration/pstn.test.js",
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 124,
+      "criterion": "Call `answered` | Event `completed` with no reply | Attempt `no_input`; candidate stays `contacting`",
+      "test_references": [
+        "test/integration/pstn.test.js",
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-04",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 125,
+      "criterion": "Call `sent` | Event `failed` (invalid number) | Attempt `failed`",
+      "test_references": [
+        "test/twilio-pstn.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-05",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 126,
+      "criterion": "Candidate's attempts: WhatsApp `failed`, voice `failed` | — | Candidate `failed`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-V-03-06",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 127,
+      "criterion": "Candidate's attempts: WhatsApp `failed`, voice `no_answer` | Deadline reached | Candidate `no_response` (not `failed` — the number works)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-01-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 135,
+      "criterion": "A accepts and gets a slot; A WhatsApp-contactable | — | WhatsApp `shift_confirmed_v1` with site name, address, date, times",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-01-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 136,
+      "criterion": "A accepts via call; A **not** WhatsApp-contactable | — | Info-only voice call with the confirmation",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-01-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 137,
+      "criterion": "Duplicate accept event | — | Only one confirmation sent (RH-02)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-02-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 145,
+      "criterion": "Candidate becomes `too_late` | — | Receives `shift_unavailable_v1` (\"Thanks — this shift is no longer available\")",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-02-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 146,
+      "criterion": "Candidate declines after filled | — | No message",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-03-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 154,
+      "criterion": "Confirmed assignment, request cancelled | — | Staff receives `shift_cancelled_v1` with site, date, time",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-F-03-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 155,
+      "criterion": "Request cancelled; candidate only `contacting` | — | No message (AC-R-09-03)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-01-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 173,
+      "criterion": "Each row in the table above | Mapper runs | Returns the listed response",
+      "test_references": [
+        "test/domain.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-02-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 183,
+      "criterion": "Event E (ACCEPT) processed | E delivered again | `200`; no second assignment; no second confirmation",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-02-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 184,
+      "criterion": "Candidate already `accepted` | A **different** event with ACCEPT on the other channel | Logged; no change (A-05)",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-02-03",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 185,
+      "criterion": "Event processing throws mid-way | Same event retried | Processed exactly once in effect (transaction rolled back the first time)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-04-01",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 199,
+      "criterion": "Any event received (matched, unmatched, duplicate, invalid option) | — | Raw body stored with received time",
+      "test_references": [
+        "test/integration/message-events.test.js",
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-RH-04-02",
+      "source": "docs/specs/06-channels-and-responses.md",
+      "line": 200,
+      "criterion": "Event rejected for bad signature (I-03) | — | Not stored as an event; logged as a security warning",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-01",
+      "source": "docs/specs/07-integration.md",
+      "line": 39,
+      "criterion": "Queued WhatsApp offer | Send job runs | Mock receives a request matching the shape above",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-02",
+      "source": "docs/specs/07-integration.md",
+      "line": 40,
+      "criterion": "Mock returns `202` | — | Attempt `sent`, `external_id` stored",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-03",
+      "source": "docs/specs/07-integration.md",
+      "line": 41,
+      "criterion": "Mock returns `400` | — | Attempt `failed`, not retried",
+      "test_references": [
+        "test/integration/mock-transport.test.js",
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-04",
+      "source": "docs/specs/07-integration.md",
+      "line": 42,
+      "criterion": "Mock returns `503` twice then `202` | — | Attempt `sent` after 3rd try",
+      "test_references": [
+        "test/integration/mock-transport.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-05",
+      "source": "docs/specs/07-integration.md",
+      "line": 43,
+      "criterion": "Mock returns `503` four times | — | Attempt `failed`",
+      "test_references": [
+        "test/integration/mock-transport.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-06",
+      "source": "docs/specs/07-integration.md",
+      "line": 44,
+      "criterion": "Same `correlation_id` sent twice (job retried after a timeout that actually succeeded) | — | We send the same `correlation_id` so the service can de-duplicate",
+      "test_references": [
+        "test/integration/mock-transport.test.js",
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-01-07",
+      "source": "docs/specs/07-integration.md",
+      "line": 45,
+      "criterion": "Attempt is `cancelled` before the job runs | Job runs | Nothing is sent",
+      "test_references": [
+        "test/integration/whatsapp.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-02-01",
+      "source": "docs/specs/07-integration.md",
+      "line": 70,
+      "criterion": "Valid signed event | Posted | `200`; event stored; attempt updated",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-02-02",
+      "source": "docs/specs/07-integration.md",
+      "line": 71,
+      "criterion": "Body missing `event_id` or `type` | Posted | `400`",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-02-03",
+      "source": "docs/specs/07-integration.md",
+      "line": 72,
+      "criterion": "Unknown `type` | Posted | `200`; stored; no state change",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-02-04",
+      "source": "docs/specs/07-integration.md",
+      "line": 73,
+      "criterion": "Events arrive out of order (`reply` before `delivered`) | Both posted | Final attempt status `replied`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-03-01",
+      "source": "docs/specs/07-integration.md",
+      "line": 83,
+      "criterion": "Correct signature, fresh timestamp | Posted | `200`",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-03-02",
+      "source": "docs/specs/07-integration.md",
+      "line": 84,
+      "criterion": "Wrong signature | Posted | `401`",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-03-03",
+      "source": "docs/specs/07-integration.md",
+      "line": 85,
+      "criterion": "Missing signature header | Posted | `401`",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-03-04",
+      "source": "docs/specs/07-integration.md",
+      "line": 86,
+      "criterion": "Correct signature, timestamp 6 minutes old | Posted | `401` (replay protection)",
+      "test_references": [
+        "test/integration/message-events.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-03-05",
+      "source": "docs/specs/07-integration.md",
+      "line": 87,
+      "criterion": "Body changed after signing | Posted | `401`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-04-01",
+      "source": "docs/specs/07-integration.md",
+      "line": 103,
+      "criterion": "Mock running | Our system sends 2 messages | `sent` list has 2 entries",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-04-02",
+      "source": "docs/specs/07-integration.md",
+      "line": 104,
+      "criterion": "Mock programmed: next call returns `503` | Our system sends | Receives `503`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-04-03",
+      "source": "docs/specs/07-integration.md",
+      "line": 105,
+      "criterion": "— | `emit(att_1, \"reply\", { option_id: \"ACCEPT\" })` | Our endpoint receives a correctly signed event",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-I-04-04",
+      "source": "docs/specs/07-integration.md",
+      "line": 106,
+      "criterion": "Mock reset between tests | — | `sent` list is empty",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 16,
+      "criterion": "Admin edits staff name | — | One entry: actor = admin, action `staff.updated`, before/after names",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 17,
+      "criterion": "Staff accepts a request via WhatsApp | — | Entry with actor_type `staff`, action `candidate.accepted`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 18,
+      "criterion": "Request expires | — | Entry with actor_type `system`, action `request.expired`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 19,
+      "criterion": "The change fails (transaction rolled back) | — | No audit entry",
+      "test_references": [
+        "test/integration/foundation.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-05",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 20,
+      "criterion": "— | Anyone calls update/delete on audit log | `404` / `405` (no such endpoint)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-01-06",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 21,
+      "criterion": "Site manager of S1 | Lists audit for an S2 request | `404`",
+      "test_references": [
+        "test/integration/local-completion.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-G-01b-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 29,
+      "criterion": "— | Any record is created | `ctime` and `utime` are set to now (fake clock) and are equal",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-G-01b-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 30,
+      "criterion": "Record created at T1 | Updated at T2 | `ctime = T1`, `utime = T2`",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-G-01b-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 31,
+      "criterion": "— | Client sends `ctime` / `utime` in a create or update body | Values ignored; server times used",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-G-01b-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 32,
+      "criterion": "— | Schema check (migration test) | Every table has `ctime` and `utime` of type `timestamptz NOT NULL`",
+      "test_references": [
+        "test/integration/schema.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-02-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 52,
+      "criterion": "Request sent | — | One `send-attempt` job per attempt; one `request-deadline` job",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-02-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 53,
+      "criterion": "`request-deadline` runs twice | — | Request expired once; one audit entry",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-02-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 54,
+      "criterion": "Worker was down at deadline | Worker restarts | Request is expired",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-02-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 55,
+      "criterion": "Request filled before deadline | Deadline job runs | No change (AC-R-07-04)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-03-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 63,
+      "criterion": "Site `Asia/Singapore`, input `2026-11-03 07:00` | Converted | `2026-11-02T23:00:00Z`",
+      "test_references": [
+        "../ns-workforce-ams/test/time.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-03-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 64,
+      "criterion": "Site `Australia/Sydney`, shift 2026-04-05 01:00–09:00 local (DST ends that night) | Duration computed | 9 hours (not 8)",
+      "test_references": [
+        "../ns-workforce-ams/test/time.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-03-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 65,
+      "criterion": "Two sites in different timezones | Same staff, shifts compared for overlap | Compared in UTC (correct regardless of timezone)",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-N-03-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 66,
+      "criterion": "Message built for site in `Asia/Singapore` | — | Times in Singapore local time",
+      "test_references": [
+        "../ns-workforce-ams/test/time.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-01-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 78,
+      "criterion": "Admin creates staff via form with invalid mobile | Inline error on mobile field; form not submitted",
+      "test_references": [
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-01-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 79,
+      "criterion": "Admin creates staff with valid data | Staff appears in list",
+      "test_references": [
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-01-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 80,
+      "criterion": "Admin uploads CSV with errors | Error table shows row number, field, message",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-01-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 81,
+      "criterion": "Admin links 3 staff to a site via multi-select | Site's staff tab shows the 3 staff",
+      "test_references": [
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-01-05",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 82,
+      "criterion": "Site manager logs in | \"Add staff\", \"Add site\", \"Link staff\" actions are not visible",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-02-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 88,
+      "criterion": "Manager picks site, date, times, headcount, channels | Draft created; candidate list shown with excluded staff and reasons",
+      "test_references": [
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-02-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 89,
+      "criterion": "Manager removes a candidate, then clicks Send | Confirmation dialog shows \"Send to N staff via WhatsApp / Call\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-02-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 90,
+      "criterion": "Manager picks end time before start time | Inline error; Send disabled",
+      "test_references": [
+        "../ns-workforce-ams/e2e/local-completion.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-02-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 91,
+      "criterion": "Site dropdown for a site manager | Only their sites listed",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-02-05",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 92,
+      "criterion": "Manager opens a staff profile and clicks \"Contact directly\" | Direct request form opens with staff pre-filled (R-04)",
+      "test_references": [
+        "../ns-workforce-ams/e2e/local-completion.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-03-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 98,
+      "criterion": "Filter by status `open` | Only open requests",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-03-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 99,
+      "criterion": "List shows | Site, date/time, `accepted / headcount`, status, created by",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-04-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 105,
+      "criterion": "Request open; mock emits ACCEPT for a candidate | Within 10 s (polling in P0), candidate shows \"Accepted\" and counter increases",
+      "test_references": [
+        "../ns-workforce-ams/e2e/management.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-04-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 106,
+      "criterion": "Per candidate | Shows each channel's attempt status (e.g. WhatsApp: Read, Call: No answer) and response time",
+      "test_references": [
+        "test/integration/local-completion.test.js",
+        "../ns-workforce-ams/e2e/local-completion.spec.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-04-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 107,
+      "criterion": "Request filled | Status badge \"Filled\"; Send/Cancel buttons reflect allowed actions",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-05-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 113,
+      "criterion": "Manager confirms a `contacting` candidate manually (e.g. they called in) | Same effect as accept: assignment, roster shift, confirmation message; audit actor = manager",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-05-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 114,
+      "criterion": "Manager removes an `accepted` candidate | Assignment cancelled; roster shift cancelled (or back to open, RO-06); staff receives F-03; slot reopens if request still open and before deadline",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-05-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 115,
+      "criterion": "Manual confirm when request is already filled | Error \"Request is full\"",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-05-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 116,
+      "criterion": "Manual confirm of staff with overlapping shift | Error with reason `overlapping_shift`",
+      "test_references": [
+        "test/integration/requests.test.js"
+      ],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-01",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 122,
+      "criterion": "Open site roster, week view | Grid: rows = staff (+ \"Open shifts\" row), columns = 7 days, shifts in local time",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-02",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 123,
+      "criterion": "Day with an open shift | Day header highlighted as understaffed",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-03",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 124,
+      "criterion": "Create shift that overlaps | Error message names the conflict",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-04",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 125,
+      "criterion": "Assign staff not linked to site | Warning dialog; \"Assign anyway\" saves with acknowledgement",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-05",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 126,
+      "criterion": "Select 2 open shifts → \"Find staff\" | Create-request form opens pre-filled, headcount 2",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    },
+    {
+      "id": "AC-D-07-06",
+      "source": "docs/specs/08-platform-and-dashboard.md",
+      "line": 127,
+      "criterion": "Click \"Publish week\" | Summary dialog: published N, notified M, not notified list",
+      "test_references": [],
+      "verification": "not_yet_individually_accepted"
+    }
+  ]
+}

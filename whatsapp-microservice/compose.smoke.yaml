@@ -1,0 +1,16 @@
+# Isolated fixture configuration used only by npm run test:smoke.
+services:
+  api:
+    ports: !override ["127.0.0.1:30329:3000"]
+    environment: &fixtures
+      META_APP_ID: "123"
+      META_APP_SECRET: smoke-only-secret
+      META_GRAPH_API_VERSION: v25.0
+      WHATSAPP_BUSINESS_ACCOUNT_ID: "456"
+      WHATSAPP_PHONE_NUMBER_ID: "789"
+      WHATSAPP_ACCESS_TOKEN: smoke-only-invalid-token
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: smoke-verify
+      INBOUND_WEBHOOK_URL: ""
+      INBOUND_WEBHOOK_SECRET: ""
+  worker:
+    environment: *fixtures

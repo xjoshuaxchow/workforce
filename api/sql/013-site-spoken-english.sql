@@ -1,0 +1,2 @@
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS voice_name_en text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS voice_address_en text NOT NULL DEFAULT '';

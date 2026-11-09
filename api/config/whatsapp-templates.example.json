@@ -1,0 +1,74 @@
+{
+  "shift_offer_v1": {
+    "name": "shift_offer_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name",
+      "site_address",
+      "date",
+      "start_time",
+      "end_time",
+      "message"
+    ],
+    "buttons": {
+      "accept": 0,
+      "decline": 1
+    }
+  },
+  "shift_confirmed_v1": {
+    "name": "shift_confirmed_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name",
+      "site_address",
+      "date",
+      "start_time",
+      "end_time"
+    ]
+  },
+  "shift_unavailable_v1": {
+    "name": "shift_unavailable_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name"
+    ]
+  },
+  "shift_cancelled_v1": {
+    "name": "shift_cancelled_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name",
+      "date",
+      "start_time",
+      "end_time"
+    ]
+  },
+  "roster_published_v1": {
+    "name": "roster_published_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name",
+      "shifts"
+    ]
+  },
+  "roster_changed_v1": {
+    "name": "roster_changed_v1",
+    "language": "en",
+    "body": [
+      "staff_name",
+      "site_name",
+      "old_date",
+      "old_start_time",
+      "old_end_time",
+      "date",
+      "start_time",
+      "end_time",
+      "change"
+    ]
+  }
+}

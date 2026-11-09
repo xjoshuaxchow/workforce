@@ -1,0 +1,43 @@
+{
+  "name": "whatsapp-microservice",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/server.js",
+    "worker": "node dist/worker-main.js",
+    "init": "node dist/cli.js init",
+    "migrate": "node dist/cli.js migrate",
+    "api-key": "node dist/cli.js api-key",
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit.test.ts tests/media.test.ts tests/meta.test.ts",
+    "test:integration": "vitest run tests/integration.test.ts tests/inbox.spec.ts",
+    "test:smoke": "node scripts/smoke.mjs",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "file-type": "^21.0.0",
+    "ipaddr.js": "^2.2.0",
+    "pg": "^8.16.0",
+    "pino": "^9.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/supertest": "^6.0.0",
+    "prettier": "^3.6.0",
+    "supertest": "^7.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.1"
+  }
+}

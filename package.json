@@ -1,0 +1,20 @@
+{
+  "name": "workforce",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=26 <27"
+  },
+  "scripts": {
+    "bootstrap": "node scripts/project.mjs install",
+    "build": "node scripts/project.mjs build",
+    "test": "node --test test/*.test.mjs && node scripts/project.mjs test",
+    "test:integration": "npm --prefix api run test:integration",
+    "test:e2e": "npm --prefix ams run test:e2e",
+    "check:repository": "node scripts/check-repository.mjs",
+    "dev:api": "npm --prefix api run dev",
+    "dev:ams": "npm --prefix ams run dev",
+    "whatsapp:up": "node scripts/project.mjs whatsapp-up",
+    "whatsapp:key": "node scripts/project.mjs whatsapp-key"
+  }
+}
