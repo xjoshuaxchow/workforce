@@ -1,0 +1,196 @@
+name: workforce
+
+x-workforce-env: &workforce-env
+  DATABASE_URL: postgresql://workforce:${WORKFORCE_DB_PASSWORD:?Run python3 scripts/setup-deploy.py first}@workforce-db:5432/workforce
+  WORKFORCE_SETTINGS_KEY: ${WORKFORCE_SETTINGS_KEY:?Missing settings encryption key}
+  MESSAGING_SECRET: ${MESSAGING_SECRET:?Missing messaging secret}
+  MESSAGING_MODE: mock
+  WHATSAPP_MODE: mock
+  AMS_ORIGIN: ${AMS_ORIGIN:-http://127.0.0.1:8320}
+
+x-api: &api
+  platform: ${WORKFORCE_PLATFORM:-linux/amd64}
+  image: workforce-api:local
+  build: ./api
+  init: true
+  environment: *workforce-env
+  volumes: [speech_runtime:/app/.local]
+  mem_limit: 1g
+  cpus: 1.0
+  pids_limit: 256
+  stop_grace_period: 45s
+
+x-wa-env: &wa-env
+  NODE_ENV: production
+  PGHOST: whatsapp-db
+  PGPORT: "5432"
+  PGUSER: whatsapp
+  PGDATABASE: whatsapp
+  CONFIG_PATH: /run/service-config
+  WORKER_CONCURRENCY: "1"
+  META_APP_ID: ${META_APP_ID:-}
+  META_APP_SECRET: ${META_APP_SECRET:-}
+  META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v26.0}
+  WHATSAPP_BUSINESS_ACCOUNT_ID: ${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+
+x-wa: &wa
+  platform: ${WORKFORCE_PLATFORM:-linux/amd64}
+  image: workforce-whatsapp:local
+  build: ./whatsapp-microservice
+  profiles: [whatsapp]
+  init: true
+  environment: *wa-env
+  volumes: [whatsapp_config:/run/service-config:ro, whatsapp_media:/data/media]
+  mem_limit: 256m
+  cpus: 0.5
+  pids_limit: 128
+  stop_grace_period: 45s
+
+services:
+  workforce-db:
+    platform: ${WORKFORCE_PLATFORM:-linux/amd64}
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: workforce
+      POSTGRES_DB: workforce
+      POSTGRES_PASSWORD: ${WORKFORCE_DB_PASSWORD:?Missing database password}
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=30]
+    volumes: [workforce_database:/var/lib/postgresql/data]
+    networks: [database]
+    mem_limit: 192m
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U workforce -d workforce]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  workforce-init:
+    <<: *api
+    restart: "no"
+    command: [sh, -c, "node scripts/migrate.js && node scripts/seed.js"]
+    environment:
+      <<: *workforce-env
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    depends_on:
+      workforce-db: {condition: service_healthy}
+    networks: [database]
+
+  workforce-api:
+    <<: *api
+    restart: unless-stopped
+    depends_on:
+      workforce-init: {condition: service_completed_successfully}
+    networks: [app, database]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8310/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    platform: ${WORKFORCE_PLATFORM:-linux/amd64}
+    image: workforce-web:local
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    ports: ["127.0.0.1:${WORKFORCE_HTTP_PORT:-8320}:80"]
+    depends_on:
+      workforce-api: {condition: service_healthy}
+    networks: [app]
+    mem_limit: 64m
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/health]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  speech-install:
+    <<: *api
+    profiles: [speech]
+    restart: "no"
+    command: [python3, scripts/install-local-tts.py]
+    networks: [app]
+
+  whatsapp-init:
+    <<: *wa
+    user: "0:0"
+    restart: "no"
+    command: [node, dist/cli.js, init]
+    volumes: [whatsapp_config:/run/service-config, whatsapp_media:/data/media]
+    networks: [whatsapp_database]
+
+  whatsapp-db:
+    platform: ${WORKFORCE_PLATFORM:-linux/amd64}
+    image: postgres:17-alpine
+    profiles: [whatsapp]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: whatsapp
+      POSTGRES_DB: whatsapp
+      POSTGRES_PASSWORD_FILE: /run/service-config/postgres-password
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=30]
+    volumes: [whatsapp_database:/var/lib/postgresql/data, whatsapp_config:/run/service-config:ro]
+    networks: [whatsapp_database]
+    mem_limit: 192m
+    depends_on:
+      whatsapp-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U whatsapp -d whatsapp]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  whatsapp-migrate:
+    <<: *wa
+    restart: "no"
+    command: [node, dist/cli.js, migrate]
+    depends_on:
+      whatsapp-db: {condition: service_healthy}
+    networks: [whatsapp_database]
+
+  whatsapp-api:
+    <<: *wa
+    restart: unless-stopped
+    depends_on:
+      whatsapp-migrate: {condition: service_completed_successfully}
+    networks: [app, whatsapp_database]
+    healthcheck:
+      test: [CMD, node, dist/cli.js, health]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  whatsapp-worker:
+    <<: *wa
+    restart: unless-stopped
+    command: [node, dist/worker-main.js]
+    depends_on:
+      whatsapp-migrate: {condition: service_completed_successfully}
+    networks: [app, whatsapp_database]
+    healthcheck:
+      test: [CMD, node, dist/cli.js, worker-health]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  workforce_database:
+  speech_runtime:
+  whatsapp_database:
+  whatsapp_config:
+  whatsapp_media:
+
+networks:
+  app:
+  database:
+    internal: true
+  whatsapp_database:
+    internal: true

@@ -1,0 +1,11 @@
+**/node_modules
+**/.git
+**/.env
+**/.env.*
+**/.local
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+**/*.log
+.superpowers

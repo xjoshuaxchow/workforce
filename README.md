@@ -53,9 +53,20 @@ npm run test:e2e
 
 `test` 包含根目錄指令隔離檢查、AMS/API 單元測試及 WhatsApp 的三個單元測試檔。API 的部分測試需要監聽本機 HTTP；WhatsApp 單元測試不需要 Meta 憑證。整合測試及瀏覽器測試需要 api/.env 中的本機 TEST_DATABASE_URL，會清空指定的隔離測試庫，兩者須依序執行。WhatsApp 的資料庫整合測試與 smoke 測試另見該服務 README。
 
-## 部署狀態
+## Ubuntu Docker 部署
 
-這次完成程式碼整合；WhatsApp 已有獨立 Dockerfile/compose.yaml。AMS/API 的正式 Docker、HTTPS 入口和整套根目錄 Compose 尚待按實際伺服器環境配置，不能把本機 Vite 開發服務當成正式部署。詳見 [部署與資料遷移](deploy/README.md)。
+根目錄 compose.yaml 已提供 AMS 靜態網站、API/背景任務、獨立 PostgreSQL、自動遷移及首次管理員初始化。WhatsApp 與語音安裝按需啟用。詳細步驟見 [部署指南](deploy/README.md)。
+
+```sh
+python3 scripts/setup-deploy.py
+docker compose up -d --build
+docker compose ps
+curl -fsS http://127.0.0.1:8320/health
+```
+
+根目錄 .env 由初始化產生且不上 Git；不要只複製範例而留下空密鑰。API 容器不接收初始管理員密碼；帳號在資料庫內，seed 資料只供一次性初始化。第一次建立的是新資料庫，既有 Mac 資料需另外安排遷移。
+
+預設只綁定 127.0.0.1:8320，公開網域、HTTPS 和現有 Nginx 的接入仍需按伺服器配置。初始電話/WhatsApp 保持模擬模式，啟動不會自動發真實通知。
 
 整合前的歷史文件保留當時的專案名稱與本機路徑；日常操作使用本 README 和目前的 `ams/`、`api/` 目錄。
 
