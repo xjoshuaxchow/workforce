@@ -1696,3 +1696,31 @@ test("Review same-origin WhatsApp key replacement keeps old message polling usab
     "read",
   );
 });
+
+
+test("Real WhatsApp mode can be saved before templates exist and runtime status stays usable", async () => {
+  await setup();
+  const result = await save({ whatsapp: { mode: "service", url: "http://whatsapp-api:3000", key: "fixture-early-activation-key" } });
+  assert.equal(result.status, 200);
+  const active = await settings.current();
+  assert.equal(active.config.whatsapp.mode, "service");
+  for (const language of ["en", "yue", "zh"])
+    assert.ok(Object.values(active.config.templates[language]).every(template => template.name === ""));
+  const { createChannelRuntime } = await import("../../src/channel-runtime.js");
+  const runtime = createChannelRuntime({ pool, settings });
+  const status = await runtime.status();
+  assert.equal(status.whatsapp, "service");
+  assert.equal(status.mode, "mock+whatsapp-service");
+});
+
+
+test("Early WhatsApp activation still rejects invalid configured reply buttons", async () => {
+  await setup();
+  const current = await settings.current();
+  current.config.whatsapp = { mode: "service", url: "http://whatsapp-api:3000", key: "fixture-activation-validation-key" };
+  Object.assign(current.config.templates.en.shift_offer_v1, { name: "invite_job", buttons: { accept: 0, decline: 0 } });
+  const result = await api("PATCH", "/api/settings/channels", { expectedVersion: current.id, config: current.config });
+  assert.equal(result.status, 400);
+  assert.match(JSON.stringify(result.body.errors), /distinct/);
+  assert.equal((await settings.current()).id, current.id);
+});

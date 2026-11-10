@@ -186,3 +186,31 @@ test("WhatsApp HTTP client follows the supplied Bearer v1 and idempotency contra
     await new Promise((r) => server.close(r));
   }
 });
+
+
+test("WhatsApp real connection can be configured independently of template mappings", () => {
+  assert.equal(typeof wa.parseWhatsAppConnection, "function");
+  assert.deepEqual(wa.parseWhatsAppConnection({}), { mode: "mock" });
+  assert.deepEqual(wa.parseWhatsAppConnection(env), { mode: "service", url: "http://127.0.0.1:8080", key: "test-key" });
+  for (const missing of ["WHATSAPP_SERVICE_URL", "WHATSAPP_SERVICE_API_KEY"])
+    assert.throws(() => wa.parseWhatsAppConnection({ ...env, [missing]: "" }));
+  assert.throws(() => wa.parseWhatsAppConnection({ ...env, WHATSAPP_SERVICE_URL: "http://wa.test/v1" }));
+  assert.throws(() => wa.parseWhatsAppConnection({ ...env, WHATSAPP_SERVICE_API_KEY: "key\nheader" }));
+});
+
+test("Missing template names stop message construction before provider submission", () => {
+  const incomplete = { ...templates, shift_offer_v1: { ...templates.shift_offer_v1, name: "" } };
+  assert.throws(() => wa.buildWhatsAppMessage({ template: "shift_offer_v1", to: "+15005550006", variables: { staff_name: "Anna", site_name: "Depot" }, options: [] }, incomplete), error => {
+    assert.equal(error.code, "missing_whatsapp_template");
+    assert.equal(error.retryable, false);
+    return true;
+  });
+});
+
+
+test("Configured WhatsApp mappings still require distinct offer buttons and information-only notifications", () => {
+  assert.equal(typeof wa.parseWhatsAppTemplate, "function");
+  assert.throws(() => wa.parseWhatsAppTemplate("shift_offer_v1", { ...templates.shift_offer_v1, buttons: { accept: 0, decline: 0 } }), /distinct/);
+  assert.throws(() => wa.parseWhatsAppTemplate("shift_confirmed_v1", { ...templates.shift_confirmed_v1, buttons: { accept: 0, decline: 1 } }), /Info-only/);
+  assert.equal(wa.parseWhatsAppTemplate("shift_offer_v1", templates.shift_offer_v1).name, "shift_offer_v1");
+});

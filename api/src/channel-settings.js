@@ -4,7 +4,7 @@ import { z } from "zod";
 import { mutate, audit, admin } from "./service.js";
 import { fail, validation } from "./domain.js";
 import { parsePstnConfig } from "./twilio-pstn.js";
-import { parseWhatsAppConfig } from "./whatsapp-client.js";
+import { parseWhatsAppConfig, parseWhatsAppConnection, parseWhatsAppTemplate } from "./whatsapp-client.js";
 import { registerVoiceAssets } from "./voice-assets.js";
 import { registerWhatsAppTemplates } from "./whatsapp-template-admin.js";
 import { defaultVoiceTexts, voiceTextLayout } from "./voice-content.js";
@@ -387,16 +387,16 @@ export function createChannelSettings({
             TWILIO_FROM_NUMBER: config.voice.fromNumber,
             TWILIO_PUBLIC_BASE_URL: config.voice.publicBaseUrl,
           });
-        if (config.whatsapp.mode === "service")
-          for (const language of channelLanguages)
-            parseWhatsAppConfig(
-              {
-                WHATSAPP_MODE: "service",
-                WHATSAPP_SERVICE_URL: config.whatsapp.url,
-                WHATSAPP_SERVICE_API_KEY: config.whatsapp.key,
-              },
-              config.templates[language],
-            );
+        if (config.whatsapp.mode === "service") {
+          parseWhatsAppConnection({
+            WHATSAPP_MODE: "service",
+            WHATSAPP_SERVICE_URL: config.whatsapp.url,
+            WHATSAPP_SERVICE_API_KEY: config.whatsapp.key,
+          });
+          for (const mappings of Object.values(config.templates))
+            for (const [name, template] of Object.entries(mappings))
+              if (template.name) parseWhatsAppTemplate(name, template);
+        }
       } catch (error) {
         validation("channels", error.message);
       }

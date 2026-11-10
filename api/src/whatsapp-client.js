@@ -36,11 +36,11 @@ const definition = z
       .optional(),
   })
   .strict();
-export function parseWhatsAppConfig(env = process.env, definitions) {
+export function parseWhatsAppConnection(env = process.env) {
   const mode = env.WHATSAPP_MODE ?? "mock";
   if (mode === "mock") return { mode };
   if (mode !== "service") throw Error("WHATSAPP_MODE must be mock or service");
-  const required = (name) => {
+  const required = name => {
     const value = env[name]?.trim();
     if (!value) throw Error(name + " is required");
     return value;
@@ -51,51 +51,45 @@ export function parseWhatsAppConfig(env = process.env, definitions) {
   } catch {
     throw Error("WHATSAPP_SERVICE_URL must be a service origin");
   }
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash
-  )
-    throw Error(
-      "WHATSAPP_SERVICE_URL must be a service origin without credentials",
-    );
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash)
+    throw Error("WHATSAPP_SERVICE_URL must be a service origin without credentials");
   const key = required("WHATSAPP_SERVICE_API_KEY");
   if (/[\r\n]/.test(key)) throw Error("WHATSAPP_SERVICE_API_KEY is invalid");
+  return { mode, url: url.origin, key };
+}
+export function parseWhatsAppTemplate(name, value) {
+  const parsed = definition.safeParse(value);
+  if (!parsed.success) throw Error("WhatsApp template configuration is invalid or incomplete");
+  const buttons = parsed.data.buttons;
+  if (name === "shift_offer_v1") {
+    if (!buttons || buttons.accept === buttons.decline)
+      throw Error("WhatsApp offer template needs distinct accept and decline buttons");
+  } else if (buttons) {
+    throw Error("Info-only WhatsApp templates must not contain reply buttons");
+  }
+  return parsed.data;
+}
+export function parseWhatsAppConfig(env = process.env, definitions) {
+  const connection = parseWhatsAppConnection(env);
+  if (connection.mode === "mock") return connection;
   if (definitions === undefined) {
     try {
-      definitions = JSON.parse(
-        readFileSync(required("WHATSAPP_TEMPLATES_FILE"), "utf8"),
-      );
+      definitions = JSON.parse(readFileSync(env.WHATSAPP_TEMPLATES_FILE?.trim() || "", "utf8"));
     } catch {
-      throw Error(
-        "WHATSAPP_TEMPLATES_FILE must contain valid template configuration",
-      );
+      throw Error("WHATSAPP_TEMPLATES_FILE must contain valid template configuration");
     }
   }
-  const parsed = z
-    .object(Object.fromEntries(templateNames.map((name) => [name, definition])))
-    .strict()
-    .safeParse(definitions);
-  if (!parsed.success)
-    throw Error("WhatsApp template configuration is invalid or incomplete");
-  const offer = parsed.data.shift_offer_v1.buttons;
-  if (!offer || offer.accept === offer.decline)
-    throw Error(
-      "WhatsApp offer template needs distinct accept and decline buttons",
-    );
-  for (const name of templateNames.slice(1))
-    if (parsed.data[name].buttons)
-      throw Error(
-        "Info-only WhatsApp templates must not contain reply buttons",
-      );
-  return { mode, url: url.origin, key, templates: parsed.data };
+  const parsed = z.object(Object.fromEntries(templateNames.map(name => [name, definition]))).strict().safeParse(definitions);
+  if (!parsed.success) throw Error("WhatsApp template configuration is invalid or incomplete");
+  for (const name of templateNames) parseWhatsAppTemplate(name, parsed.data[name]);
+  return { ...connection, templates: parsed.data };
 }
 export function buildWhatsAppMessage(payload, templates) {
   const template = templates[payload.template];
-  if (!template) throw Error("WhatsApp template is not configured");
+  if (!template?.name)
+    throw Object.assign(Error("WhatsApp template is not configured: " + payload.template), {
+      code: "missing_whatsapp_template", retryable: false,
+    });
   const components = [];
   if (template.body.length)
     components.push({

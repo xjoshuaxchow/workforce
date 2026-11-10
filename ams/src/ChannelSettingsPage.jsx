@@ -671,7 +671,7 @@ export function ChannelSettingsPage({ notify }) {
                     ? "已設定，留空保留"
                     : "尚未設定"}
                   。填 microservice origin，不加
-                  /v1。密鑰儲存後不會回傳到瀏覽器。
+                  /v1。密鑰儲存後不會回傳到瀏覽器。可先啟用真實微服務並準備模板；實際發送前仍會檢查使用的模板是否已核准。
                 </p>
               </section>
             </>
