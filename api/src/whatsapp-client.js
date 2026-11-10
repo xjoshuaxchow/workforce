@@ -167,11 +167,12 @@ export function whatsAppStatus(message) {
   return "sent";
 }
 export class WhatsAppServiceError extends Error {
-  constructor(status, code, retryable) {
-    super(`WhatsApp service request failed (${status || "network"} / ${code})`);
+  constructor(status, code, retryable, metaCode) {
+    super(`WhatsApp service request failed (${status || "network"} / ${code}${metaCode === undefined ? "" : " / Meta " + metaCode})`);
     this.status = status;
     this.code = code;
     this.retryable = retryable;
+    this.metaCode = metaCode;
   }
 }
 export function createWhatsAppClient(
@@ -212,6 +213,9 @@ export function createWhatsAppClient(
           response.status,
           code,
           response.status === 429 || response.status >= 500,
+          code === "META_ERROR" && Number.isSafeInteger(body?.error?.details?.code)
+            ? body.error.details.code
+            : undefined,
         );
       }
       return body;

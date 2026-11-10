@@ -22,6 +22,7 @@ import { registerRoster, futureStaffWarnings } from "./roster.js";
 import { registerDispatch } from "./dispatch.js";
 import { channelRequestContext } from "./channel-context.js";
 import { registerMessaging } from "./messaging.js";
+import { WhatsAppServiceError } from "./whatsapp-client.js";
 
 const userFields = "id,email,name,role,active,ctime,utime";
 const dummyHash = `scrypt:00000000000000000000000000000000:${"00".repeat(64)}`;
@@ -626,6 +627,36 @@ export function createApp({
   if (pstn) pstn.register(app);
   app.use((req, res) => res.status(404).json({ message: "Not found" }));
   app.use((error, req, res, next) => {
+    if (error instanceof WhatsAppServiceError) {
+      console.warn(JSON.stringify({
+        level: "warn", event: "whatsapp.request.failed",
+        status: error.status, code: error.code, metaCode: error.metaCode,
+      }));
+      let reason = "whatsapp_service_error";
+      let message = "WhatsApp 微服務未能完成請求，請檢查服務狀態後重試。";
+      if (error.code === "META_ERROR") {
+        reason = "whatsapp_meta_error";
+        message = "Meta 未能完成請求，請檢查 WhatsApp 帳戶設定後重試。";
+        if (error.metaCode === 190) {
+          reason = "whatsapp_access_token_invalid";
+          message = "Meta Access Token 已過期或無效。請更新伺服器的 WHATSAPP_ACCESS_TOKEN，並重新建立 WhatsApp API 和 Worker 容器。";
+        } else if (error.metaCode === 100) {
+          reason = "whatsapp_meta_request_invalid";
+          message = "Meta 請求的參數或資源不正確，請核對 WABA ID、範本設定及帳戶權限。";
+        } else if ([10, 200].includes(error.metaCode)) {
+          reason = "whatsapp_meta_permission_denied";
+          message = "Meta 拒絕存取，請確認 Access Token 的 WhatsApp 權限，以及對應帳戶已指派給此使用者。";
+        }
+        if (error.metaCode !== undefined) message += `（Meta 錯誤代碼 ${error.metaCode}）`;
+      } else if (error.status === 401 || error.status === 403) {
+        reason = "whatsapp_service_auth_failed";
+        message = "WhatsApp 微服務驗證失敗，請核對 AMS 儲存的 WhatsApp API key。";
+      } else if (error.code === "UNAVAILABLE") {
+        reason = "whatsapp_service_unavailable";
+        message = "無法連接 WhatsApp 微服務，請檢查服務網址、容器狀態及內部網絡。";
+      }
+      return res.status(502).json({ message, reason });
+    }
     if (error instanceof AppError)
       return res.status(error.status).json({
         message: error.message,
