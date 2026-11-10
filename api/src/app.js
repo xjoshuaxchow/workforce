@@ -645,7 +645,9 @@ export function createApp({
         } else if (error.metaCode === 100) {
           status = 400;
           reason = "whatsapp_meta_request_invalid";
-          message = "Meta 無法存取資源或請求參數不正確。請核對 WABA ID、系統使用者的 WhatsApp 帳戶資產授權及範本設定。";
+          message = error.metaTitle || error.metaExplanation
+            ? "Meta 未接受這項請求，請依下方原因修正。"
+            : "Meta 無法存取資源或請求參數不正確。請核對 WABA ID、系統使用者的 WhatsApp 帳戶資產授權及範本設定。";
         } else if ([10, 200].includes(error.metaCode)) {
           status = 400;
           reason = "whatsapp_meta_permission_denied";
@@ -660,7 +662,9 @@ export function createApp({
         reason = "whatsapp_service_unavailable";
         message = "無法連接 WhatsApp 微服務，請檢查服務網址、容器狀態及內部網絡。";
       }
-      return res.status(status).json({ message, reason });
+      const errors = [error.metaTitle, error.metaExplanation]
+        .filter(Boolean).map(message => ({ field: "Meta", message }));
+      return res.status(status).json({ message, reason, ...(errors.length ? { errors } : {}) });
     }
     if (error instanceof AppError)
       return res.status(error.status).json({

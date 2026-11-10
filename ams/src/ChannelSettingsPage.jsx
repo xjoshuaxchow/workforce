@@ -51,8 +51,12 @@ function TemplateDialog({ language, purpose, template, onClose, onDone }) {
     [body, setBody] = useState(
       bodyComponent?.text ??
         (language === "en"
-          ? "Hello {{1}}, your shift at {{2}} is on {{3}}, from {{4}} to {{5}}."
-          : "你好 {{1}}，{{2}} 的工作安排為 {{3}}，{{4}} 至 {{5}}。"),
+          ? offer
+            ? "Hello {{1}}, a new shift invitation is available for you at {{2}} on {{3}}. The shift starts at {{4}} and ends at {{5}}. Please review the shift details and use the buttons below to accept or decline this invitation."
+            : "Hello {{1}}, this is an update about your work schedule at {{2}} on {{3}}. The scheduled start time is {{4}} and the scheduled end time is {{5}}. Please review these details and contact your supervisor if you have any questions."
+          : offer
+            ? "你好 {{1}}，現有一個工作更次邀請。工作地點為 {{2}}，工作日期為 {{3}}，開始時間為 {{4}}，結束時間為 {{5}}。請仔細核對以上工作安排，再按下方按鈕接受或拒絕邀請。如有疑問，請聯絡你的主管。"
+            : "你好 {{1}}，這是一則工作安排更新通知。工作地點為 {{2}}，工作日期為 {{3}}，開始時間為 {{4}}，結束時間為 {{5}}。請仔細核對以上工作資料，如有任何疑問，請聯絡你的主管。"),
     ),
     [examples, setExamples] = useState({
       1: "Anna",

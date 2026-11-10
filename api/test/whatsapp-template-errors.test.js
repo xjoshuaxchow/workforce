@@ -10,9 +10,10 @@ async function listen(server) {
   return "http://127.0.0.1:" + server.address().port;
 }
 
-async function requestTemplates(t, status, body) {
+async function requestTemplates(t, status, body, create = false) {
   const upstream = createServer((req, res) => {
-    assert.equal(req.url, "/v1/templates?language=en_US&limit=50");
+    assert.equal(req.method, create ? "POST" : "GET");
+    assert.equal(req.url, create ? "/v1/templates" : "/v1/templates?language=en_US&limit=50");
     assert.equal(req.headers.authorization, "Bearer fixture-service-key");
     if (status === 0) return res.destroy();
     res.writeHead(status, { "content-type": "application/json" });
@@ -33,8 +34,14 @@ async function requestTemplates(t, status, body) {
   const server = createApp({ pool, settings }).listen(0, "127.0.0.1");
   await new Promise(resolve => server.once("listening", resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
-  const response = await fetch("http://127.0.0.1:" + server.address().port + "/api/settings/whatsapp/templates?language=en_US", {
-    headers: { authorization: "Bearer fixture-session" },
+  const response = await fetch("http://127.0.0.1:" + server.address().port + "/api/settings/whatsapp/templates" + (create ? "" : "?language=en_US"), {
+    method: create ? "POST" : "GET",
+    headers: { authorization: "Bearer fixture-session", "content-type": "application/json" },
+    ...(create ? { body: JSON.stringify({
+      name: "invite_job", language: "en_US", category: "UTILITY",
+      body: "Hello {{1}}, your shift at {{2}} is on {{3}}, from {{4}} to {{5}}.",
+      examples: ["Anna", "North Depot", "10 Nov 2099", "07:00", "15:00"], offer: true,
+    }) } : {}),
   });
   return { status: response.status, body: await response.json() };
 }
@@ -70,4 +77,35 @@ test("Template listing remains available in mock mode and returns approved templ
   const result = await requestTemplates(t, 200, body);
   assert.equal(result.status, 200);
   assert.deepEqual(result.body, body);
+});
+
+
+test("Template creation returns Meta's actionable variable-ratio rejection", async t => {
+  const result = await requestTemplates(t, 422, { error: { code: "META_ERROR", message: "Meta rejected the operation", details: {
+    code: 100,
+    message: "Invalid parameter",
+    error_user_title: "Parameters words ratio exceeds limit",
+    error_user_msg: "This template has too many variables for its length. Reduce the number of variables or increase the message length.",
+  } } }, true);
+  assert.equal(result.status, 400);
+  assert.equal(result.body.reason, "whatsapp_meta_request_invalid");
+  assert.ok(Array.isArray(result.body.errors), "Meta rejection must include its actionable explanation");
+  assert.ok(result.body.errors.some(error => error.message.includes("Parameters words ratio exceeds limit")));
+  assert.ok(result.body.errors.some(error => error.message.includes("increase the message length")));
+  assert.ok(!result.body.message.includes("WABA"));
+});
+
+test("Meta's user-facing template error excludes service keys, credential links and raw error data", async t => {
+  const result = await requestTemplates(t, 422, { error: { code: "META_ERROR", details: {
+    code: 100,
+    message: "raw-fixture-private-data",
+    error_user_title: "Invalid template fixture-service-key",
+    error_user_msg: "Use more text. Bearer fixture-hidden-token See https://example.test/?access_token=fixture-url-token",
+    access_token: "raw-fixture-private-data",
+  } } }, true);
+  assert.equal(result.status, 400);
+  assert.ok(Array.isArray(result.body.errors), "Sanitized Meta explanation must be retained");
+  assert.match(JSON.stringify(result.body.errors), /Use more text/);
+  for (const secret of ["fixture-service-key", "fixture-hidden-token", "fixture-url-token", "raw-fixture-private-data"])
+    assert.ok(!JSON.stringify(result).includes(secret));
 });

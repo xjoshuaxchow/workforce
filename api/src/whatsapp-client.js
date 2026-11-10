@@ -167,18 +167,28 @@ export function whatsAppStatus(message) {
   return "sent";
 }
 export class WhatsAppServiceError extends Error {
-  constructor(status, code, retryable, metaCode) {
+  constructor(status, code, retryable, metaCode, metaUserError = {}) {
     super(`WhatsApp service request failed (${status || "network"} / ${code}${metaCode === undefined ? "" : " / Meta " + metaCode})`);
     this.status = status;
     this.code = code;
     this.retryable = retryable;
     this.metaCode = metaCode;
+    this.metaTitle = metaUserError.title;
+    this.metaExplanation = metaUserError.explanation;
   }
 }
 export function createWhatsAppClient(
   { url, key, timeout = 10000 },
   fetcher = fetch,
 ) {
+  const safeMetaText = value => typeof value === "string"
+    ? value.replaceAll(key, "[REDACTED]")
+      .replace(/https?:\/\/[^\s]+/gi, "[連結已省略]")
+      .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
+      .replace(/\b(?:access_token|api_key|auth_token|app_secret|password|token)\s*[=:]\s*[^\s,;]+/gi, "[REDACTED]")
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+      .trim().slice(0, 1000) || undefined
+    : undefined;
   return {
     async request(method, path, { data, key: requestKey, params } = {}) {
       const endpoint = new URL("/v1" + path, url);
@@ -216,6 +226,10 @@ export function createWhatsAppClient(
           code === "META_ERROR" && Number.isSafeInteger(body?.error?.details?.code)
             ? body.error.details.code
             : undefined,
+          code === "META_ERROR" ? {
+            title: safeMetaText(body?.error?.details?.error_user_title),
+            explanation: safeMetaText(body?.error?.details?.error_user_msg),
+          } : undefined,
         );
       }
       return body;
