@@ -727,8 +727,8 @@ tbody tr:last-child td {
 .clip-sequence li { padding: 7px 4px; }
 .clip-sequence li a, .clip-sequence li strong { margin-left: 14px; white-space: nowrap; font-size: 13px; }
 .clip-sequence li strong { color: #a23a2a; }
-.azure-audio-list { display: grid; gap: 16px; margin-top: 18px; }
-.azure-audio-item { border: 1px solid var(--line, #dce2e7); border-radius: 10px; padding: 18px; background: #f8fafb; }
-.azure-audio-item h4 { margin: 0; }
-.azure-audio-item .speech-preview-text { line-height: 1.8; white-space: pre-wrap; }
-.azure-audio-item audio { display: block; width: min(100%, 480px); margin-top: 12px; }
+.generated-audio-list { display: grid; gap: 16px; margin-top: 18px; }
+.generated-audio-item { border: 1px solid var(--line, #dce2e7); border-radius: 10px; padding: 18px; background: #f8fafb; }
+.generated-audio-item h4 { margin: 0; }
+.generated-audio-item .speech-preview-text { line-height: 1.8; white-space: pre-wrap; }
+.generated-audio-item audio { display: block; width: min(100%, 480px); margin-top: 12px; }

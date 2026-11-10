@@ -8,7 +8,7 @@ import { localVoices } from "./voice-synthesis-content.js";
 import { validMp3 } from "./audio-validation.js";
 
 const defaultRoot = fileURLToPath(new URL("../.local/onnx-tts", import.meta.url));
-let running = false;
+let engineQueue = Promise.resolve();
 const localError = message => Object.assign(Error(message), { uncertain: false, userMessage: message });
 function voiceFailure(stderr, descriptor) {
   for (const line of stderr.split(/\r?\n/).reverse()) {
@@ -43,8 +43,10 @@ export function createLocalSpeechClient({ root = defaultRoot, python = join(root
       if (!Object.values(localVoices).includes(descriptor.voice) || localVoices[descriptor.language] !== descriptor.voice) throw localError("Unsupported local voice");
       if (!Number.isFinite(descriptor.speed) || descriptor.speed < 0.7 || descriptor.speed > 1.3) throw localError("Invalid local speech speed");
       if (!descriptor.script?.trim() || descriptor.script.length > 6000 || descriptor.script.includes("\0")) throw localError("Invalid local speech text");
-      if (running) throw localError("本機正在生成其他音檔，請稍後重試。");
-      running = true;
+      const previous = engineQueue;
+      let release;
+      engineQueue = new Promise(resolve => { release = resolve; });
+      await previous;
       let folder;
       try {
         folder = await mkdtemp(join(tmpdir(), "workforce-local-tts-"));
@@ -71,7 +73,7 @@ export function createLocalSpeechClient({ root = defaultRoot, python = join(root
         return bytes;
       } finally {
         try { if (folder) await rm(folder, { recursive: true, force: true }); }
-        finally { running = false; }
+        finally { release(); }
       }
     },
   };

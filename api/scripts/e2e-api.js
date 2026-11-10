@@ -18,7 +18,6 @@ await pool.query(
 const testMp3 = Buffer.concat(Array.from({ length: 2 }, () => {
   const frame = Buffer.alloc(417); Buffer.from([0xff, 0xfb, 0x90, 0]).copy(frame); return frame;
 }));
-const uncertain = new Set();
 const localFailures = new Set();
 const settings = createChannelSettings({ pool, key: Buffer.alloc(32, 7), localClientFactory: () => ({
   status: async () => ({ installed: true, languages: ["yue", "en"] }),
@@ -28,13 +27,7 @@ const settings = createChannelSettings({ pool, key: Buffer.alloc(32, 7), localCl
     }
     return testMp3;
   },
-}), azureClientFactory: () => ({ synthesize: async descriptor => {
-  if (descriptor.script.includes("AZURE_TEST_UNCERTAIN") && !uncertain.has(descriptor.hash)) {
-    uncertain.add(descriptor.hash);
-    throw Object.assign(Error("Fake interrupted generation"), { uncertain: true });
-  }
-  return testMp3;
-} }) });
+}) });
 const runtime = createChannelRuntime({ pool, settings });
 const server = createApp({
   pool,

@@ -14,8 +14,7 @@ for (const [language,label] of [['yue','粵語'],['en','英語']]) {
     await page.request.post(`/api/sites/${site.id}/staff`,{data:{staff_ids:[staff.id]}});
     const request=await(await page.request.post('/api/requests',{data:{site_id:site.id,mode:'direct',staff_id:staff.id,headcount:1,channels:['voice'],message:language==='yue'?'LOCAL_TEST_FAILURE':'',start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'}})).json();
     await page.getByRole('button',{name:'調度工作台',exact:true}).click();await page.getByRole('button',{name:'查看詳情',exact:true}).click();
-    const generate=page.getByRole('button',{name:`生成缺少 MP3（${label}）`,exact:true});
-    await expect(generate).toBeEnabled();await generate.click();
+    const generate=page.getByRole('button',{name:`重新準備缺少語音（${label}）`,exact:true});
     if(language==='yue'){
       await expect(page.getByText('生成失敗',{exact:true})).toBeVisible();
       await expect(page.getByText('Azure Key',{exact:false})).toHaveCount(0);
@@ -28,7 +27,7 @@ for (const [language,label] of [['yue','粵語'],['en','英語']]) {
     expect((await page.request.get(item.playback_path)).headers()['content-type']).toContain('audio/mpeg');
     expect((await(await page.request.post(`/api/requests/${request.id}/voice-synthesis`,{data:{language,purpose:item.purpose,expectedHash:item.hash}})).json()).asset_id).toBe(item.asset_id);
     const selected=view.languages[0].required.find(x=>x.purpose===(language==='yue'?'ack':'offer'));
-    const card=page.locator('.azure-audio-item').filter({has:page.getByRole('heading',{name:selected.label,exact:true})});
+    const card=page.locator('.generated-audio-item').filter({has:page.getByRole('heading',{name:selected.label,exact:true})});
     await expect(card.getByRole('button',{name:'修改這段講稿',exact:true})).toBeVisible({timeout:1000});
     await card.getByRole('button',{name:'修改這段講稿',exact:true}).click();
     const editor=page.getByRole('dialog',{name:`修改講稿：${selected.label}`,exact:true});
@@ -38,22 +37,20 @@ for (const [language,label] of [['yue','粵語'],['en','英語']]) {
       await expect(editor.getByText('Local Depot',{exact:true})).toBeVisible();
       let failRefresh=true;
       await page.route(`**/api/requests/${request.id}/voice-preview`,route=>{if(failRefresh){failRefresh=false;return route.abort();}return route.continue();});
-      await editor.getByRole('button',{name:'只儲存講稿',exact:true}).click();
+      await editor.getByRole('button',{name:'儲存講稿',exact:true}).click();
       await expect(editor.getByText('講稿已儲存，但頁面未能更新。可重新檢查語音，或繼續修改後再儲存。',{exact:true})).toBeVisible();
       await editor.getByLabel('固定字句 2',{exact:true}).fill('. Please review this work at ');
-      await editor.getByRole('button',{name:'只儲存講稿',exact:true}).click();
-      await expect(card.getByText('尚未生成',{exact:true})).toBeVisible();
-      await card.getByRole('button',{name:'生成此 MP3',exact:true}).click();
-    }else await editor.getByRole('button',{name:'儲存並只生成這段',exact:true}).click();
+      await editor.getByRole('button',{name:'儲存講稿',exact:true}).click();
+    }else await editor.getByRole('button',{name:'儲存講稿',exact:true}).click();
     await expect(editor).not.toBeVisible();
-    await expect(card.getByText('只套用於本工作',{exact:true})).toBeVisible();
+    await expect(card.getByText('此工作使用修改後的講稿，相同內容仍可重用音檔',{exact:true})).toBeVisible();
     await expect(card.locator('audio')).toBeVisible();
     const edited=(await(await page.request.get(`/api/requests/${request.id}/voice-preview`)).json()).languages[0].required;
     expect(edited.find(x=>x.purpose===selected.purpose).customized).toBe(true);
     expect(edited.find(x=>x.purpose===selected.purpose).asset_id).not.toBe(selected.asset_id);
     for(const other of view.languages[0].required.filter(x=>x.purpose!==selected.purpose))expect(edited.find(x=>x.purpose===other.purpose).asset_id).toBe(other.asset_id);
     await card.getByRole('button',{name:'恢復預設講稿',exact:true}).click();
-    await expect(card.getByText('只套用於本工作',{exact:true})).toHaveCount(0);
+    await expect(card.getByText('此工作使用修改後的講稿，相同內容仍可重用音檔',{exact:true})).toHaveCount(0);
     const restored=(await(await page.request.get(`/api/requests/${request.id}/voice-preview`)).json()).languages[0].required.find(x=>x.purpose===selected.purpose);
     expect(restored.asset_id).toBe(selected.asset_id);expect(restored.customized).toBe(false);
     await page.screenshot({path:`/private/tmp/workforce-local-tts/${language}-request.png`,fullPage:true});

@@ -1,9 +1,10 @@
+import { prepareVoiceFiles } from "./prepare-voice.js";
 import React, { useEffect, useRef, useState } from "react";
 import { api, loadAllPages } from "./api.js";
 import { Field, ErrorNotice } from "./ui.jsx";
 import { GeneratedRequestAudio } from "./GeneratedVoice.jsx";
 
-const languages = [["yue", "粵語"], ["zh", "普通話"], ["en", "英語"]];
+const languages = [["yue", "粵語"], ["en", "英語"]];
 const languageName = code => languages.find(([key]) => key === code)?.[1] ?? code;
 async function audioUpload(file, language, name) {
   if (!file || file.size > 3 * 1024 * 1024) throw Error("請選擇 3 MB 以內的 MP3 或 WAV。");
@@ -57,7 +58,7 @@ export function ClipLibrary({ draft, setDraft, savedVersion }) {
         <p className="muted">建議錄音內容</p>
         <p className="speech-preview-text">{selected.sample}</p>
         <p className="muted">可調整用詞，請保留數值、單位及按鍵。日期和時間會分段拼接，錄音時請用一致語速及音量，裁去首尾多餘靜音。</p>
-        {category === "地點" && <p className="muted">請包含地點名稱及完整地址。Site 名稱、地址或時區改動後，需重新配對。</p>}
+        {category === "地點" && <p className="muted">請包含地點名稱及完整地址。地點名稱或地址改動後，需重新配對。</p>}
         {category === "年份數字" && <p className="muted">年份按四個數字逐字播放，例如二、零、二、八，再接「年」。英語不加「年」。</p>}
       </section>
       <div>
@@ -125,8 +126,9 @@ function LanguagePreview({ plan, request, reload }) {
     <ClipSequence items={plan.sequences[selectedPurpose]}/></>}
   </section>;
 }
-export function RequestVoicePreview({ request }) {
-  const [preview,setPreview]=useState(null),[error,setError]=useState(null),[audition,setAudition]=useState("");
+export function RequestVoicePreview({ request, onPreparing }) {
+  const [preview,setPreview]=useState(null),[error,setError]=useState(null),[audition,setAudition]=useState(""),[preparing,setPreparing]=useState(false);
+  const prepared = useRef(new Set());
   const candidateKey=request.candidates.map(c=>c.id).join(",");
   const activeAudition=request.status === "draft" ? audition : "";
   const previewPath=`/requests/${request.id}/voice-preview${activeAudition ? `?language=${activeAudition}` : ""}`;
@@ -154,14 +156,28 @@ export function RequestVoicePreview({ request }) {
     const timer=setTimeout(()=>reload().catch(()=>{}),2000);
     return ()=>clearTimeout(timer);
   },[preview]);
+  useEffect(() => { onPreparing?.(preparing); return () => onPreparing?.(false); }, [preparing, onPreparing]);
+  useEffect(() => {
+    if (preparing || request.status !== "draft" || preview?.mode !== "local-mp3" || !preview.configured) return;
+    const items = preview.languages.flatMap(plan => plan.required);
+    if (!items.length || items.every(item => item.state === "ready") || items.some(item => item.state === "blocked")) return;
+    const key = request.id + ":" + items.map(item => item.hash).sort().join(":");
+    if (prepared.current.has(key)) return;
+    prepared.current.add(key);
+    setPreparing(true); setError(null);
+    prepareVoiceFiles(request.id, preview, api)
+      .then(() => reload())
+      .catch(async error => { setError(error); await reload().catch(() => {}); })
+      .finally(() => setPreparing(false));
+  }, [preview, request.id, request.status, activeAudition, preparing]);
   return <section className="panel settings-panel">
-    <h2>調度電話語音</h2><ErrorNotice error={error}/>
+    <h2>調度電話語音</h2><ErrorNotice error={error}/>{preparing && <p role="status">正在自動準備語音，完成後可選擇試聽。</p>}
     {!request.channels.includes("voice") && <p className="muted">員工無法使用 WhatsApp 時，確認、取消或額滿通知可能改用電話，亦需準備所需錄音。</p>}
     {!preview ? <p>載入語音設定中…</p> : preview.mode==='say' ? <>
       <p>電話會按員工語言自動朗讀本次地點、日期、時間及按鍵提示，毋須上傳錄音。</p>
-      <p className="muted">使用 Site 時區。接受請按 1，拒絕請按 2，重聽請按 9。</p>
-    </> : ['azure-mp3','local-mp3'].includes(preview.mode) ? <GeneratedRequestAudio request={request} preview={preview} reload={reload} audition={activeAudition} onAudition={setAudition}/> : <>
-      <p>自備錄音模式。按 Site 時區播放兩邊完整日期時間及 UTC 時差，使用通用稱呼。接受請按 1，拒絕請按 2，重聽請按 9。</p>
+      <p className="muted">使用香港時間。接受請按 1，拒絕請按 2，重聽請按 9。</p>
+    </> : ['azure-mp3','local-mp3'].includes(preview.mode) ? <GeneratedRequestAudio request={request} preview={preview} reload={reload} audition={activeAudition} onAudition={setAudition} preparing={preparing}/> : <>
+      <p>自備錄音模式。按香港時間播放完整日期時間，使用通用稱呼。接受請按 1，拒絕請按 2，重聽請按 9。</p>
       <p className="muted">共用片段在「通訊設定 → 電話語音」配對。下方試聽不會撥電話。</p>
       <button type="button" className="quiet" onClick={()=>reload().catch(()=>{})}>重新檢查錄音</button>
       {preview.languages.length===0 && <p className="muted">加入候選員工後會列出需要的語言錄音。</p>}

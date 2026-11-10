@@ -44,8 +44,8 @@ export function RequestVoiceTextEditor({ request, item, configured, onClose, onS
     </section>
     <ErrorNotice error={error} />
     <div className="actions">
-      <button type="button" disabled={busy || invalid || !changed || !configured} onClick={() => save(true)}>{busy ? "處理中…" : "儲存並只生成這段"}</button>
-      <button className="quiet" type="button" disabled={busy || invalid || !changed} onClick={() => save(false)}>只儲存講稿</button>
+      <button type="button" disabled={busy || invalid || !changed} onClick={() => save(true)}>{busy ? "處理中…" : "儲存講稿"}</button>
+
       <button className="quiet" type="button" disabled={busy} onClick={close}>取消</button>
     </div>
   </Modal>;

@@ -610,6 +610,7 @@ export function createApp({
     pool,
     clock,
     validateChannels: runtime?.validateDispatch,
+    prepareChannels: runtime ? settings?.prepareVoice : null,
   });
   if (settings) settings.register(app);
   if (runtime)

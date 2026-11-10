@@ -450,7 +450,7 @@ test("PSTN confirmation waits for the offer to end and completes without changin
   assert.ok(confirmation);
   const xml = await (await callback(confirmation, "twiml")).text();
   assert.doesNotMatch(xml, /<Gather/);
-  assert.match(xml, /Your shift is confirmed/);
+  assert.match(xml, /Your shift has been confirmed/);
   await callback(confirmation, "status", {
     CallStatus: "completed",
     SequenceNumber: "4",

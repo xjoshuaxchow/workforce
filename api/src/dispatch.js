@@ -443,7 +443,7 @@ export async function detail(db, user, id) {
 }
 export function registerDispatch(
   app,
-  { pool, clock, validateChannels = null },
+  { pool, clock, validateChannels = null, prepareChannels = null },
 ) {
   app.get("/api/requests", async (req, res) => {
     const { page, limit, offset } = pagination(req.query),
@@ -723,6 +723,7 @@ export function registerDispatch(
     res.json(await detail(pool, req.user, req.params.id));
   });
   app.post("/api/requests/:id/send", async (req, res) => {
+    if (prepareChannels) await prepareChannels(req.user, req.params.id);
     await mutate(pool, clock, async (db) => {
       const before = await requestAccess(
         db,

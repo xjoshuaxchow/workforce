@@ -1,3 +1,4 @@
+import { WORKFORCE_TIMEZONE } from "./domain.js";
 import { validateRange, utc, validation, fail, pagination } from "./domain.js";
 import { mutate, audit, siteAccess, staffAccess } from "./service.js";
 import { queueAttempt } from "./outbox.js";
@@ -380,7 +381,7 @@ export function registerRoster(app, { pool, clock }) {
       groups.get(row.staff_id).shifts.push(row);
       if (!row.staff_id && row.status !== "cancelled") {
         const date = new Intl.DateTimeFormat("en-CA", {
-          timeZone: site.timezone,
+          timeZone: WORKFORCE_TIMEZONE,
           year: "numeric",
           month: "2-digit",
           day: "2-digit",
@@ -391,7 +392,7 @@ export function registerRoster(app, { pool, clock }) {
     }
     res.json({
       site,
-      timezone: site.timezone,
+      timezone: WORKFORCE_TIMEZONE,
       groups: [...groups.values()],
       days,
     });

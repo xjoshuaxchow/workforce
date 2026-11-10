@@ -1,3 +1,4 @@
+import { HONG_KONG_TIMEZONE } from "./time.js";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
 import {
@@ -91,7 +92,7 @@ function StaffForm({ staff, onDone, onClose }) {
         errors: [
           {
             field: "mobile",
-            message: "手機號碼須含國家代碼，例如 +6591234567",
+            message: "手機號碼須含國際區號，例如 +85296644718",
           },
         ],
       });
@@ -172,16 +173,9 @@ function StaffForm({ staff, onDone, onClose }) {
             checked={value.whatsapp_opt_in}
             onChange={(e) => change("whatsapp_opt_in")(e.target.checked)}
           />
-          已取得 WhatsApp 聯絡同意
+          員工已同意接收公司工作通知
         </label>
-        {value.whatsapp_opt_in && (
-          <Field
-            label="同意來源"
-            value={value.whatsapp_opt_in_source}
-            onChange={change("whatsapp_opt_in_source")}
-            required
-          />
-        )}
+        <p className="muted">只需確認一次，系統會記錄確認時間及操作人。未勾選時不會透過 WhatsApp 聯絡此員工。</p>
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
             取消
@@ -344,7 +338,7 @@ function Staff({ user, notify, onContact }) {
       {importing && (
         <CSVImport
           path="/staff/import"
-          description="必要欄位：name、mobile。可另填 language、preferred_channel、whatsapp_opt_in 及 whatsapp_opt_in_source。"
+          description="必要欄位：name、mobile。語言填 en 或 yue；已取得工作通知同意時可填 whatsapp_opt_in=true，毋須填寫同意來源。"
           onDone={(r) => done(`已匯入 ${r.created} 位員工`)}
           onClose={() => setImporting(false)}
         />
@@ -362,7 +356,7 @@ function SiteForm({ site, onDone, onClose }) {
         address: "",
         voice_name_en: "",
         voice_address_en: "",
-        timezone: "Asia/Singapore",
+        timezone: "Asia/Hong_Kong",
         status: "active",
       },
     ),
@@ -375,7 +369,7 @@ function SiteForm({ site, onDone, onClose }) {
     try {
       await api(site ? `/sites/${site.id}` : "/sites", {
         method: site ? "PATCH" : "POST",
-        body: value,
+        body: { ...value, timezone: value.timezone ?? "Asia/Hong_Kong" },
       });
       onDone("地點資料已儲存");
     } catch (e) {
@@ -399,12 +393,6 @@ function SiteForm({ site, onDone, onClose }) {
             label="地點名稱"
             value={value.name}
             onChange={change("name")}
-            required
-          />
-          <Field
-            label="時區"
-            value={value.timezone}
-            onChange={change("timezone")}
             required
           />
           <Field
@@ -543,7 +531,7 @@ function Sites({ user, notify }) {
         <div>
           <p className="eyebrow">LOCATIONS</p>
           <h1>工作地點</h1>
-          <p className="muted">管理 Site、當地時區與可工作員工。</p>
+          <p className="muted">管理工作地點及可工作員工。日期時間統一使用香港時間。</p>
         </div>
         {user.role === "admin" && (
           <div className="actions">
@@ -561,7 +549,7 @@ function Sites({ user, notify }) {
             <tr>
               <th>地點</th>
               <th>代碼</th>
-              <th>時區</th>
+              <th>時間</th>
               <th>狀態</th>
               <th>操作</th>
             </tr>
@@ -574,7 +562,7 @@ function Sites({ user, notify }) {
                   <small>{s.address || "未填地址"}</small>
                 </td>
                 <td>{s.code}</td>
-                <td>{s.timezone}</td>
+                <td>香港時間</td>
                 <td>
                   <span
                     className={`badge ${s.status === "active" ? "success" : ""}`}
@@ -845,7 +833,7 @@ function Audit() {
           <tbody>
             {data.items.map((a) => (
               <tr key={a.id}>
-                <td>{new Date(a.at).toLocaleString("zh-HK")}</td>
+                <td>{new Date(a.at).toLocaleString("zh-HK", {timeZone: HONG_KONG_TIMEZONE})}</td>
                 <td>{a.action}</td>
                 <td>{a.entity_type}</td>
                 <td>{a.actor_type}</td>
@@ -1028,6 +1016,7 @@ export function App() {
           </span>
           <span>
             {new Date().toLocaleDateString("zh-HK", {
+              timeZone: HONG_KONG_TIMEZONE,
               year: "numeric",
               month: "long",
               day: "numeric",

@@ -1,7 +1,7 @@
 import { buildVoiceContent } from "./voice-content.js";
 import { recordedVoice } from "./voice-clip-service.js";
 import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
-import { fail, mapResponse, validation } from "./domain.js";
+import { fail, mapResponse, validation, WORKFORCE_TIMEZONE } from "./domain.js";
 import { mutate, audit, siteAccess } from "./service.js";
 import {
   respond,
@@ -199,7 +199,7 @@ export async function receiveEvent(pool, clock, payload, raw) {
 function localTimes(request, site) {
   const start = new Date(request.start_at),
     end = new Date(request.end_at),
-    zone = site.timezone;
+    zone = WORKFORCE_TIMEZONE;
   const day = (value) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: zone,

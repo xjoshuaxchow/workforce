@@ -27,19 +27,19 @@ export function registerVoiceTextRoutes(app, { pool, clock, settings }) {
     const parsed = inputSchema.safeParse(req.body);
     if (!parsed.success) validation("voiceText", "單段講稿格式不正確");
     const input = parsed.data;
-    if (input.parts !== null && !voicePartsSchema(input.purpose).safeParse(input.parts).success)
-      validation("voiceText", "固定字句不能全為空白，每段最多400字、合計1200字；系統資料及按鍵位置不能改動。");
     const result = await mutate(pool, clock, async db => {
       const request = await requestAccess(db, req.user, req.params.id, 404, true);
       if (request.status !== "draft") fail(409, "只有草稿可以修改電話講稿。");
       const active = (await db.query("SELECT version_id FROM messaging_settings_active WHERE singleton FOR SHARE")).rows[0];
-      const { config } = await settings.get(active.version_id);
+      const { config } = await settings.current();
       if (!generatedVoiceMode(config.voiceClips.mode)) fail(409, "請先選擇完整 MP3 生成模式。");
       if (config.voiceClips.mode === "local-mp3" && !Object.hasOwn(localVoices, input.language)) fail(409, "本機語音只支援粵語及英語。");
       const site = (await db.query("SELECT * FROM sites WHERE id=$1 FOR SHARE", [request.site_id])).rows[0];
       const current = (await requestSynthesisDescriptors(db, config, input.language, site, request)).find(item => item.purpose === input.purpose);
       if (!current) fail(409, "這份工作不需要此段語音。");
       if (current.hash !== input.expectedHash || current.textRevision !== input.expectedTextRevision) fail(409, "講稿或工作資料已改變，請重新檢查後再修改。");
+      if (input.parts !== null && !voicePartsSchema(input.purpose, current.parts.length === 5).safeParse(input.parts).success)
+        validation("voiceText", "固定字句不能全為空白，每段最多400字、合計1200字；系統資料及按鍵位置不能改動。");
       const restore = input.parts === null || JSON.stringify(input.parts) === JSON.stringify(config.voiceTexts[input.language][input.purpose]);
       if (restore) await db.query("DELETE FROM request_voice_texts WHERE request_id=$1 AND language=$2 AND purpose=$3", [request.id, input.language, input.purpose]);
       else await db.query("INSERT INTO request_voice_texts(request_id,language,purpose,parts,revision,updated_by,utime) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7) ON CONFLICT(request_id,language,purpose) DO UPDATE SET parts=excluded.parts,revision=excluded.revision,updated_by=excluded.updated_by,utime=excluded.utime", [request.id, input.language, input.purpose, JSON.stringify(input.parts), randomUUID(), req.user.id, clock()]);

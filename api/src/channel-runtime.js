@@ -19,7 +19,7 @@ export function createChannelRuntime({
   async function profile(id) {
     const current = id ? await settings.get(id) : await settings.current();
     const active = await settings.current(),
-      cacheKey = current.id + ":" + active.id;
+      cacheKey = (id ? "snapshot:" : "active:") + current.id + ":" + active.id;
     if (profiles.has(cacheKey)) return profiles.get(cacheKey);
     const { config } = current,
       credentials = await settings.credentials(config);

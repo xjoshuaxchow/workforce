@@ -90,7 +90,7 @@ export function registerClipRoutes(app, { pool, settings }) {
       }
     }
     // Preview paths stay on this origin; provider URLs and credentials are unnecessary.
-    const configured = mode === "local-mp3" ? (await settings.localStatus()).installed : Boolean(profile.config.voiceSynthesis.key && profile.config.voiceSynthesis.region);
+    const configured = mode === "local-mp3" ? (await settings.localStatus()).installed : false;
     res.json({ mode, configured, requiredLanguages, settings_version_id: profile.id, languages: plans.map(({ voices, ...plan }) => plan) });
   });
 }

@@ -2,11 +2,10 @@ import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
 import { Field, ErrorNotice, Modal } from "./ui.jsx";
 import { ClipLibrary, RequestVoicePreview } from "./VoiceClips.jsx";
-import { AzureVoiceSettings, LocalVoiceSettings } from "./GeneratedVoice.jsx";
+import { LocalVoiceSettings } from "./GeneratedVoice.jsx";
 export const languages = [
   ["en", "英語"],
   ["yue", "粵語"],
-  ["zh", "普通話"],
 ];
 const purposes = [
   ["shift_offer_v1", "工作邀請"],
@@ -34,7 +33,6 @@ const editable = (config) => {
   const copy = structuredClone(config);
   delete copy.voice.authTokenConfigured;
   delete copy.whatsapp.keyConfigured;
-  if (copy.voiceSynthesis) { delete copy.voiceSynthesis.keyConfigured; copy.voiceSynthesis.key = ""; }
   copy.voice.authToken = "";
   copy.whatsapp.key = "";
   return copy;
@@ -225,7 +223,7 @@ function TemplateSettings({ draft, setDraft }) {
   };
   return (
     <section className="panel settings-panel">
-      <h2>WhatsApp 三語模板</h2>
+      <h2>WhatsApp 粵語及英文模板</h2>
       <div className="form-grid">
         <Field
           label="內容語言"
@@ -443,7 +441,7 @@ function VoiceSettings({ draft, setDraft, layout, shared = false, local = false 
   }));
   return (
     <section className="panel settings-panel">
-      <h2>{shared ? "AI MP3 固定講稿" : "Twilio Say 三語語音"}</h2>
+      <h2>{shared ? "AI MP3 固定講稿" : "Twilio Say 粵語及英語"}</h2>
       <p>{shared ? "完整音檔使用通用稱呼，同一工作及語言的員工共用，不加入個別姓名。" : "電話按員工語言自動朗讀邀請、確認及取消通知，毋須上傳錄音。"}</p>
       <p className="muted">可修改固定用詞或改用同音字修正讀音。系統資料和按鍵已鎖定，不能在這裡修改。</p>
       {definition && parts ? (
@@ -488,7 +486,7 @@ function VoiceSettings({ draft, setDraft, layout, shared = false, local = false 
                 ))}
               </p>
               <p className={count > 1200 ? "notice error" : "muted"}>固定字句 {count}／1200 字，每段上限 400 字。</p>
-              <p className="muted">{shared ? "這是文字預覽，儲存後可在調度草稿生成 MP3 試聽。" : "這是文字預覽。實際讀音仍以 Twilio 電話為準。"}</p>
+              <p className="muted">{shared ? "這是文字預覽，儲存後調度草稿會自動準備 MP3，亦可選擇試聽。" : "這是文字預覽。實際讀音仍以 Twilio 電話為準。"}</p>
               <p className="muted">完成後按頁頂「儲存設定」。新邀請使用新講稿；已發出的邀請及其跟進通知保留原講稿。</p>
             </section>
           </div>
@@ -499,11 +497,10 @@ function VoiceSettings({ draft, setDraft, layout, shared = false, local = false 
         <thead><tr><th>員工語言</th><th>電話語言</th><th>聲線</th></tr></thead>
         <tbody>
           <tr><td>粵語</td><td>香港粵語</td><td>Google.yue-HK-Standard-A</td></tr>
-          <tr><td>普通話</td><td>中國普通話</td><td>Google.cmn-CN-Standard-A</td></tr>
           <tr><td>英語</td><td>英國英語</td><td>Google.en-GB-Standard-A</td></tr>
         </tbody>
       </table></>}
-      <p className="muted">地點、地址及班次時間由系統加入，使用 Site 時區。跨午夜會讀出結束日期。接受請按 1，拒絕請按 2，重聽請按 9。</p>
+      <p className="muted">地點、地址及班次時間由系統加入，使用香港時間。跨午夜會讀出結束日期。接受請按 1，拒絕請按 2，重聽請按 9。</p>
       <p className="muted">請在員工資料選擇語言，並於真機測試核對地址、數字及日期的讀音。</p>
     </section>
   );
@@ -530,7 +527,6 @@ export function ChannelSettingsPage({ notify }) {
       const config = structuredClone(draft);
       if (!config.voice.authToken) delete config.voice.authToken;
       if (!config.whatsapp.key) delete config.whatsapp.key;
-      if (!config.voiceSynthesis?.key) delete config.voiceSynthesis.key;
       const r = await api("/settings/channels", {
         method: "PATCH",
         body: { expectedVersion: current.id, config },
@@ -567,7 +563,7 @@ export function ChannelSettingsPage({ notify }) {
           <p className="eyebrow">CHANNELS</p>
           <h1>通訊設定</h1>
           <p className="muted">
-            管理連線、三語模板與電話語音。已排程邀請保留原設定，後續新邀請使用新設定。
+            管理連線、粵語及英文模板與電話語音。已排程邀請保留原設定，後續新邀請使用新設定。
           </p>
         </div>
         {draft && (
@@ -681,11 +677,11 @@ export function ChannelSettingsPage({ notify }) {
           )}{" "}
           {tab === "voice" && (
             <>
-              <section className="panel settings-panel"><Field label="電話內容方式" value={draft.voiceClips?.mode ?? "say"} onChange={mode=>setDraft(old=>({...old,voiceClips:{...old.voiceClips,mode}}))} options={[["local-mp3","本機生成完整 MP3（粵語／英語）"],["say","Twilio Say 語音合成"],["clips","自備 MP3／WAV 片段"],["azure-mp3","Azure 生成完整 MP3"]]}/><p className="muted">儲存後只影響新發出的工作，原有工作及跟進通知保留原設定。</p></section>
+              <section className="panel settings-panel"><Field label="電話內容方式" value={draft.voiceClips?.mode ?? "say"} onChange={mode=>setDraft(old=>({...old,voiceClips:{...old.voiceClips,mode}}))} options={[["local-mp3","本機生成完整 MP3（粵語／英語）"],["say","Twilio Say 語音合成"],["clips","自備 MP3／WAV 片段"]]}/><p className="muted">儲存後只影響新發出的工作，原有工作及跟進通知保留原設定。</p></section>
               {draft.voiceClips?.mode === "clips" ? <ClipLibrary draft={draft} setDraft={setDraft} savedVersion={current.id}/>
-                : <>{draft.voiceClips?.mode === "azure-mp3" && <AzureVoiceSettings draft={draft} setDraft={setDraft} savedConfig={current.config.voiceSynthesis} choices={current.azureVoiceChoices}/>}
+                : <>
                 {draft.voiceClips?.mode === "local-mp3" && <LocalVoiceSettings draft={draft} setDraft={setDraft} status={current.localSpeechStatus}/>}
-                <VoiceSettings key={draft.voiceClips?.mode} draft={draft} setDraft={setDraft} layout={current.voiceTextLayout} shared={["azure-mp3","local-mp3"].includes(draft.voiceClips?.mode)} local={draft.voiceClips?.mode === "local-mp3"}/></>}
+                <VoiceSettings key={draft.voiceClips?.mode} draft={draft} setDraft={setDraft} layout={current.voiceTextLayout} shared={draft.voiceClips?.mode === "local-mp3"} local={draft.voiceClips?.mode === "local-mp3"}/></>}
             </>
           )}
         </>

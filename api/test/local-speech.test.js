@@ -14,14 +14,12 @@ test('English local scripts use Site spoken aliases without altering Cantonese c
   const yue=content.localSynthesisDescriptors({speed:1},'yue',aliases,request)[0];
   assert.equal(yue.hash,content.localSynthesisDescriptors({speed:1},'yue',site,request)[0].hash);
 });
-test('Local MP3 speaks Site-local time without GMT while preserving legacy Azure scripts',()=>{
+test('Local MP3 speaks Hong Kong time without GMT',()=>{
   for(const language of ['en','yue']){
     const local=content.localSynthesisDescriptors({speed:1},language,site,request)[0];
     assert.doesNotMatch(local.script,/GMT|UTC/);
     assert.match(local.script,language==='yue'?/23點30分/:/23:30/);
     assert.match(local.script,language==='yue'?/1點00分/:/01:00/);
-    const azure=content.synthesisDescriptors(content.defaultVoiceSynthesis(),language,site,request)[0];
-    assert.match(azure.script,/GMT\+8/);
   }
 });
 test('Local failure exposes only controlled unsupported characters, never raw process logs',async()=>{
@@ -50,7 +48,6 @@ test('Local full-file hashes isolate providers and invalidate changed scripts/sp
   const offer=items[0];
   assert.match(offer.script,/同事/);assert.match(offer.script,/2099年11月10日/);assert.match(offer.script,/2099年11月11日/);
   assert.match(offer.script,/九龍灣/);assert.match(offer.script,/身份證/);
-  assert.notEqual(offer.hash,content.synthesisDescriptors(content.defaultVoiceSynthesis(),'yue',site,request)[0].hash);
   assert.notEqual(offer.hash,content.localSynthesisDescriptors({speed:0.9},'yue',site,request)[0].hash);
   assert.notEqual(offer.hash,content.localSynthesisDescriptors({speed:1},'yue',{...site,address:'另一地點'},request)[0].hash);
   assert.equal(items[3].hash,content.localSynthesisDescriptors({speed:1},'yue',site,{...request,id:'another'})[3].hash);
@@ -75,4 +72,21 @@ test('Local child failure is retryable and does not expose stderr or leave tempo
     const descriptor=content.localSynthesisDescriptors({speed:1},'yue',site,request)[0];
     await assert.rejects(client.synthesize(descriptor),e=>e.uncertain===false&&!e.message.includes('private'));
   } finally {await rm(root,{recursive:true,force:true});}
+});
+test('Concurrent local requests queue native processes instead of failing on engine contention',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'local-queue-test-'));
+ try {
+  const {readFile}=await import('node:fs/promises');
+  const bytes=await readFile(new URL('./fixtures/silence.mp3',import.meta.url));
+  const script=join(root,'fake-engine.mjs');
+  await writeFile(script,`import{mkdir,writeFile,rm}from'node:fs/promises';
+const lock=${JSON.stringify(join(root,'process.lock'))};
+await mkdir(lock);await new Promise(r=>setTimeout(r,40));
+await writeFile(process.argv[process.argv.indexOf('--output')+1],Buffer.from(${JSON.stringify(bytes.toString('base64'))},'base64'));
+await rm(lock,{recursive:true});`);
+  const client=local.createLocalSpeechClient({root,python:process.execPath,script});
+  const descriptor=content.localSynthesisDescriptors({speed:1},'yue',site,request)[0];
+  const results=await Promise.all([client.synthesize(descriptor),client.synthesize(descriptor)]);
+  for(const result of results)assert.deepEqual(result,bytes);
+ }finally{await rm(root,{recursive:true,force:true});}
 });

@@ -1,3 +1,4 @@
+import { WORKFORCE_TIMEZONE } from "./domain.js";
 import { createHash } from "node:crypto";
 import { voiceProfile } from "./voice-content.js";
 
@@ -23,8 +24,8 @@ export function clipManifest(purpose, language, site, request) {
   if (purpose === "filled") return { main: ["unavailable"], ...prompts };
   if (!["offer", "confirmation", "cancellation"].includes(purpose)) throw Error("Unsupported recorded voice purpose");
   return {
-    main: [purpose, siteClipKey(site), "from", ...dateClipKeys(request.start_at, site.timezone, language),
-      "to", ...dateClipKeys(request.end_at, site.timezone, language),
+    main: [purpose, siteClipKey(site), "from", ...dateClipKeys(request.start_at, WORKFORCE_TIMEZONE, language),
+      "to", ...dateClipKeys(request.end_at, WORKFORCE_TIMEZONE, language),
       ...(purpose === "offer" ? [...(request.message?.trim() ? ["message"] : []), "keys"] : [])],
     ...prompts,
   };

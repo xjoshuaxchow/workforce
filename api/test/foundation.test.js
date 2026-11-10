@@ -15,20 +15,12 @@ test("AC-S-02-01 rejects a mobile without its country code", async () => {
     (e) => e.status === 400 && e.errors[0].field === "mobile",
   );
 });
-test("AC-S-04-02 requires a source for WhatsApp opt-in", async () => {
+test("Explicit WhatsApp consent can record the administrator as its source", async () => {
   const { validateStaff } = await import("../src/domain.js");
-  assert.throws(
-    () =>
-      validateStaff({
-        name: "Anna",
-        mobile: "+6591234567",
-        whatsapp_opt_in: true,
-      }),
-    (e) =>
-      e.status === 400 &&
-      e.errors.some((x) => x.field === "whatsapp_opt_in_source"),
-  );
+  const result = validateStaff({name:"Anna",mobile:"+6591234567",whatsapp_opt_in:true});
+  assert.equal(result.whatsapp_opt_in_source,"admin_confirmation");
 });
+
 test("AC-S-01-01 applies profile defaults and trims the name", async () => {
   const { validateStaff } = await import("../src/domain.js");
   const s = validateStaff({ name: " Anna ", mobile: "+6591234567" });

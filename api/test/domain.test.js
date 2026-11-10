@@ -45,17 +45,12 @@ test("AC-S-02-04/05 and AC-S-03-05 reject unsupported enum values", () => {
       (e) => e.status === 400,
     );
 });
-test("AC-S-04-02 source is required when enabling opt-in", () => {
-  assert.throws(
-    () =>
-      validateStaff({
-        name: "Anna",
-        mobile: "+6591234567",
-        whatsapp_opt_in: true,
-      }),
-    (e) => e.errors.some((x) => x.field === "whatsapp_opt_in_source"),
-  );
+test("Explicit WhatsApp consent can record the administrator as its source", async () => {
+  const { validateStaff } = await import("../src/domain.js");
+  const result = validateStaff({name:"Anna",mobile:"+6591234567",whatsapp_opt_in:true});
+  assert.equal(result.whatsapp_opt_in_source,"admin_confirmation");
 });
+
 test("AC-S-04-04 inactive and non-opted-in staff are never WhatsApp contactable", () => {
   assert.deepEqual(
     contactable({

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 
+export const WORKFORCE_TIMEZONE = "Asia/Hong_Kong";
+
 export class AppError extends Error {
   constructor(status, message, details = {}) {
     super(message);
@@ -44,14 +46,8 @@ const staffSchema = z
     whatsapp_opt_in: z.boolean().default(false),
     whatsapp_opt_in_source: z.string().trim().min(1).nullable().default(null),
   })
-  .superRefine((v, c) => {
-    if (v.whatsapp_opt_in && !v.whatsapp_opt_in_source)
-      c.addIssue({
-        code: "custom",
-        path: ["whatsapp_opt_in_source"],
-        message: "Source is required when opting in",
-      });
-  });
+  .transform(v => ({ ...v, whatsapp_opt_in_source: v.whatsapp_opt_in
+    ? (v.whatsapp_opt_in_source ?? "admin_confirmation") : null }));
 function parse(schema, input) {
   const result = schema.safeParse(input);
   if (!result.success)
@@ -83,7 +79,7 @@ export const validateSite = (input) =>
         } catch {
           return false;
         }
-      }, "Must be an IANA timezone"),
+      }, "Must be an IANA timezone").default("Asia/Hong_Kong"),
       status: z.enum(["active", "inactive"]).default("active"),
     }),
     input,

@@ -10,12 +10,12 @@ import { registerWhatsAppTemplates } from "./whatsapp-template-admin.js";
 import { defaultVoiceTexts, voiceTextLayout } from "./voice-content.js";
 import { defaultVoiceClips, clipCatalog } from "./voice-clips.js";
 import { registerClipRoutes } from "./voice-clip-service.js";
-import { defaultVoiceSynthesis, azureVoiceChoices, defaultLocalSpeech } from "./voice-synthesis-content.js";
+import { defaultLocalSpeech } from "./voice-synthesis-content.js";
 import { createLocalSpeechClient } from "./local-speech.js";
-import { registerSynthesisRoutes } from "./voice-synthesis-service.js";
+import { registerSynthesisRoutes, createSynthesisService } from "./voice-synthesis-service.js";
 import { registerVoiceTextRoutes } from "./voice-text-service.js";
 import { voicePartsSchema } from "./voice-text-schema.js";
-export const channelLanguages = ["en", "yue", "zh"];
+export const channelLanguages = ["en", "yue"];
 export const channelPurposes = [
   "offer",
   "confirmation",
@@ -103,14 +103,9 @@ const settingsSchema = z
     voiceTexts: byLanguage(
       z.object(Object.fromEntries(Object.keys(voiceTextLayout).map(name => [name, voicePartsSchema(name)]))).strict(),
     ).optional(),
-    voiceClips: z.object({ mode: z.enum(["say", "clips", "azure-mp3", "local-mp3"]), library: byLanguage(z.record(z.string().max(160), z.uuid())) }).strict().optional(),
+    voiceClips: z.object({ mode: z.enum(["say", "clips", "local-mp3"]), library: byLanguage(z.record(z.string().max(160), z.uuid())) }).strict().optional(),
     localSpeech: z.object({ speed: z.number().min(0.7).max(1.3) }).strict().optional(),
-    voiceSynthesis: z.object({
-      region: z.string().trim().regex(/^$|^[a-z][a-z0-9]{1,31}$/),
-      key: z.string().trim().max(500).regex(/^[^\r\n]*$/).optional(),
-      keyConfigured: z.boolean().optional(),
-      voices: z.object(Object.fromEntries(Object.entries(azureVoiceChoices).map(([language, choices]) => [language, z.enum(choices)]))).strict(),
-    }).strict().transform(({ keyConfigured, ...value }) => value).optional(),
+
   })
   .strict();
 export function defaultChannelConfig() {
@@ -123,9 +118,8 @@ export function defaultChannelConfig() {
       publicBaseUrl: "",
     },
     whatsapp: { mode: "mock", url: "", key: "" },
-    voiceTexts: defaultVoiceTexts(),
-    voiceClips: defaultVoiceClips(),
-    voiceSynthesis: defaultVoiceSynthesis(),
+    voiceTexts: Object.fromEntries(channelLanguages.map(l => [l, defaultVoiceTexts()[l]])),
+    voiceClips: { ...defaultVoiceClips(), library: Object.fromEntries(channelLanguages.map(l => [l, {}])) },
     localSpeech: defaultLocalSpeech(),
     templates: Object.fromEntries(
       channelLanguages.map((language) => [
@@ -232,14 +226,29 @@ export async function loadSettingsKey(pool, env = process.env) {
     return readFile(path);
   }
 }
-export function publicChannelConfig(config) {
+export function activeChannelConfig(config) {
   const copy = structuredClone(config);
+  const defaults = defaultChannelConfig();
+  for (const field of ["templates", "prompts", "voiceTexts"]) {
+    copy[field] = Object.fromEntries(channelLanguages.map(language => [language,
+      copy[field]?.[language] ?? defaults[field][language]]));
+  }
+  for (const language of channelLanguages)
+    for (const purpose of ["confirmation", "cancellation"])
+      if (copy.voiceTexts[language][purpose].length !== 1)
+        copy.voiceTexts[language][purpose] = defaults.voiceTexts[language][purpose];
+  copy.voiceClips ??= defaultVoiceClips();
+  copy.voiceClips.library = Object.fromEntries(channelLanguages.map(language => [language, copy.voiceClips.library?.[language] ?? {}]));
+  if (copy.voiceClips.mode === "azure-mp3") copy.voiceClips.mode = "local-mp3";
+  delete copy.voiceSynthesis;
+  copy.localSpeech ??= defaultLocalSpeech();
+  return copy;
+}
+export function publicChannelConfig(config) {
+  const copy = activeChannelConfig(config);
   copy.voiceTexts ??= defaultVoiceTexts();
   copy.voiceClips ??= defaultVoiceClips();
-  copy.voiceSynthesis ??= defaultVoiceSynthesis();
   copy.localSpeech ??= defaultLocalSpeech();
-  copy.voiceSynthesis.keyConfigured = Boolean(copy.voiceSynthesis.key);
-  delete copy.voiceSynthesis.key;
   copy.voice.authTokenConfigured = Boolean(copy.voice.authToken);
   delete copy.voice.authToken;
   copy.whatsapp.keyConfigured = Boolean(copy.whatsapp.key);
@@ -251,10 +260,10 @@ export function createChannelSettings({
   key,
   initial = defaultChannelConfig(),
   clock = () => new Date(),
-  azureClientFactory,
   localClientFactory = createLocalSpeechClient,
 }) {
   const localStatus = () => localClientFactory().status();
+  const synthesis = createSynthesisService({ pool, clock, settings: { current, get, localStatus }, localClientFactory });
   async function get(id) {
     const row = (
       await pool.query(
@@ -264,9 +273,8 @@ export function createChannelSettings({
     ).rows[0];
     if (!row) fail(404, "Settings version not found");
     const config = openSettings(key, row.encrypted_config);
-    config.voiceTexts ??= defaultVoiceTexts();
+    config.voiceTexts = { ...defaultVoiceTexts(), ...config.voiceTexts };
     config.voiceClips ??= defaultVoiceClips();
-    config.voiceSynthesis ??= defaultVoiceSynthesis();
     config.localSpeech ??= defaultLocalSpeech();
     return { id: row.id, config };
   }
@@ -305,11 +313,12 @@ export function createChannelSettings({
         )
       ).rows[0];
     }
-    return get(row.version_id);
+    const version = await get(row.version_id);
+    return { ...version, config: activeChannelConfig(version.config) };
   }
   async function publicView() {
     const value = await current();
-    return { id: value.id, config: publicChannelConfig(value.config), voiceTextLayout, azureVoiceChoices, localSpeechStatus: await localStatus() };
+    return { id: value.id, config: publicChannelConfig(value.config), voiceTextLayout, localSpeechStatus: await localStatus() };
   }
   async function save(user, input) {
     admin(user);
@@ -344,9 +353,7 @@ export function createChannelSettings({
       config.whatsapp.key ??= before.whatsapp.key;
       config.voiceTexts ??= before.voiceTexts ?? defaultVoiceTexts();
       config.voiceClips ??= before.voiceClips ?? defaultVoiceClips();
-      config.voiceSynthesis ??= before.voiceSynthesis ?? defaultVoiceSynthesis();
       config.localSpeech ??= before.localSpeech ?? defaultLocalSpeech();
-      config.voiceSynthesis.key ||= before.voiceSynthesis?.key ?? "";
       if (/[\r\n]/.test(config.voice.authToken + config.whatsapp.key))
         validation("credentials", "Credential contains invalid characters");
       for (const name of [
@@ -446,13 +453,13 @@ export function createChannelSettings({
         publicChannelConfig(before),
         publicChannelConfig(config),
       );
-      return { id: next.id, config: publicChannelConfig(config), voiceTextLayout, azureVoiceChoices, localSpeechStatus: await localStatus() };
+      return { id: next.id, config: publicChannelConfig(config), voiceTextLayout, localSpeechStatus: await localStatus() };
     });
   }
   function register(app) {
     registerVoiceAssets(app, { pool, clock });
     registerClipRoutes(app, { pool, settings: { current, get, localStatus } });
-    registerSynthesisRoutes(app, { pool, clock, settings: { current, get, localStatus }, azureClientFactory, localClientFactory });
+    registerSynthesisRoutes(app, synthesis);
     registerVoiceTextRoutes(app, { pool, clock, settings: { current, get } });
     registerWhatsAppTemplates(app, { settings: { current } });
     app.get("/api/settings/channels", async (req, res) => {
@@ -496,7 +503,7 @@ export function createChannelSettings({
       whatsappKey: whatsappKey ?? snapshot.whatsapp.key,
     };
   }
-  return { current, get, publicView, save, register, credentials };
+  return { current, get, publicView, save, register, credentials, prepareVoice: synthesis.prepare };
 }
 export async function initialChannelConfig(env = process.env) {
   const config = defaultChannelConfig();

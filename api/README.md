@@ -43,7 +43,7 @@ pg_ctl -D /opt/homebrew/var/postgresql@18 -l /private/tmp/workforce-postgres.log
 
 管理員登入後選「通訊設定」，可管理 Twilio／WhatsApp 連線、英語／粵語／普通話模板映射及三語電話語音。設定以加密版本儲存，敏感 Token／key 儲存後不回傳瀏覽器。首次從 .env bootstrap；之後以 AMS 保存版本為準，無須重啟。
 
-2026-11-06 需求方試聽後改用本機 VITS 粵語及 Piper 英語。每份工作、每語言、每用途生成一份完整 MP3，通用回覆提示跨工作共用，所有電話重用已存音檔。到「通訊設定 → 電話語音」選「本機生成完整 MP3（粵語／英語）」，儲存後在調度草稿生成及試聽，音檔齊備才可發佈。DTMF 1／2／9 沿用，無 Say／Azure 後備。普通話仍保留原有業務設定，但本機模式不支援普通話員工。
+2026-11-06 需求方試聽後改用本機 VITS 粵語及 Piper 英語。工作邀請按完整講稿內容保存一份 MP3，相同內容跨工作重用。確認、取消及通用回覆均使用固定共用音檔。到「通訊設定 → 電話語音」選「本機生成完整 MP3（粵語／英語）」，儲存後由調度草稿自動準備缺少音檔，試聽為可選；發送前後端也會補齊語音，失敗則保留草稿且不發送。DTMF 1／2／9 沿用，無 Say／Azure 後備。新增設定只提供英語及粵語；歷史其他語言資料保留，本機模式只支援英語及粵語。
 
 安裝本機語音只需在後端執行 `python3 scripts/install-local-tts.py`，套件及模型放在 `.local/onnx-tts`，不改全域 Python；安裝時需要網路，生成時不呼叫雲端語音。需 Python 3.9+ 與可用的對應平台二進位套件。固定 sherpa-onnx/core 1.12.35、NumPy 2.0.2、lameenc 1.8.1、OpenCC 0.1.7，勿直接升級至已移除內置 Piper 音素前端的 sherpa 2。這台 arm64 Mac 實測約 306 MB，其他平台可能不同。可用 `node scripts/local-tts-samples.js` 重新產生兩語本機 MP3 試聽。
 
@@ -55,7 +55,7 @@ WhatsApp 仍由 Workforce 後端呼叫既有 microservice，AMS 可查模板、�
 
 舊 Attempt 與原調度跟進保留原設定版本，mock 工作不會因模式切換而轉為付費發送。舊頁面寫入與同時編輯設定有版本409保護。歷史 Call SID／訊息保持其來源與內容快照。
 
-完整設定與 key 備份操作見 [ams-channel-settings.md](docs/ams-channel-settings.md)，人工驗收見 [ams-channel-settings-testcases.md](docs/ams-channel-settings-testcases.md)。Azure、Say 及自備錄音仍可選擇，歷史工作保留原設定。
+完整設定與 key 備份操作見 [ams-channel-settings.md](docs/ams-channel-settings.md)，人工驗收見 [ams-channel-settings-testcases.md](docs/ams-channel-settings-testcases.md)。Azure 新增合成已移除；Say 及自備錄音仍可選擇，歷史已保存音檔保留。
 
 預設仍 mock；真實測試另需服務憑證、Meta 核准模板、專用接收號碼與 Twilio 可存取的公開 HTTPS 回調／音檔網址。既有 .env 私有密碼不變。金鑰在 WORKFORCE_SETTINGS_KEY 或 .local/settings.key，還原 DB 時需保留原金鑰。
 

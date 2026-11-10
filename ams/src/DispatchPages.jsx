@@ -10,7 +10,7 @@ import {
   useAllList,
   PagedSelect,
 } from "./ui.jsx";
-import { localToUtc, utcToLocal, dayAfter, today } from "./time.js";
+import { localToUtc, utcToLocal, dayAfter, today, HONG_KONG_TIMEZONE } from "./time.js";
 const labels = {
   draft: "草稿",
   open: "進行中",
@@ -58,7 +58,7 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     [error, setError] = useState(null),
     [busy, setBusy] = useState(false);
   const site = sites.find((s) => s.id === value.site_id),
-    zone = site?.timezone ?? "Asia/Singapore";
+    zone = HONG_KONG_TIMEZONE;
   useEffect(() => {
     if (preset?.start_at)
       setValue((x) => ({
@@ -113,7 +113,7 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
   };
   return (
     <Modal title="新增調度" onClose={onClose}>
-      <p className="muted">所有時間以工作地點時區輸入：{zone}</p>
+      <p className="muted">所有日期時間均為香港時間</p>
       <ErrorNotice error={timeError ?? error ?? staffError} />
       <form onSubmit={submit}>
         <Field
@@ -235,6 +235,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
     [error, setError] = useState(null),
     [confirm, setConfirm] = useState(null),
     [busy, setBusy] = useState(false),
+    [voicePreparing, setVoicePreparing] = useState(false),
     [linked, setLinked] = useState([]),
     [toAdd, setToAdd] = useState("");
   const load = () =>
@@ -284,7 +285,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
       </>
     );
   const site = sites.find((s) => s.id === data.site_id),
-    zone = site?.timezone ?? "UTC";
+    zone = HONG_KONG_TIMEZONE;
   return (
     <>
       <button className="text-button" onClick={onBack}>
@@ -301,7 +302,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
         </div>
         <div className="actions">
           {data.status === "draft" && (
-            <button onClick={() => setConfirm("send")}>發送邀請</button>
+            <button disabled={busy || voicePreparing} onClick={() => action(`/requests/${id}/send`)}>{busy || voicePreparing ? "準備及發送中…" : "發送邀請"}</button>
           )}
           {["draft", "open", "filled"].includes(data.status) && (
             <button className="quiet" onClick={() => setConfirm("cancel")}>
@@ -460,7 +461,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           </button>
         </section>
       )}
-      <RequestVoiceSpeech request={data} />
+      <RequestVoiceSpeech request={data} onPreparing={setVoicePreparing} />
       {data.excluded?.length > 0 && (
         <section className="panel exclusions">
           <h2>未納入的員工</h2>
@@ -649,15 +650,13 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
                   <td>
                     {fmt(
                       r.start_at,
-                      sites.items.find((s) => s.id === r.site_id)?.timezone ??
-                        "UTC",
+                      HONG_KONG_TIMEZONE,
                     )}
                     <small>
                       至{" "}
                       {fmt(
                         r.end_at,
-                        sites.items.find((s) => s.id === r.site_id)?.timezone ??
-                          "UTC",
+                        HONG_KONG_TIMEZONE,
                       )}
                     </small>
                   </td>
@@ -707,7 +706,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
   );
 }
 function ShiftForm({ site, staff, shift, onDone, onClose }) {
-  const zone = site.timezone,
+  const zone = HONG_KONG_TIMEZONE,
     [value, setValue] = useState({
       staff_id: shift?.staff_id ?? "",
       start: shift ? utcToLocal(shift.start_at, zone) : "",
@@ -828,7 +827,7 @@ export function Roster({ notify, onFindStaff }) {
   const { data: sites, error: siteError } = useAllList("/sites"),
     { data: people, error: peopleError } = useAllList("/staff");
   const [siteId, setSiteId] = useState(""),
-    [week, setWeek] = useState(today("Asia/Singapore")),
+    [week, setWeek] = useState(today(HONG_KONG_TIMEZONE)),
     [data, setData] = useState(null),
     [error, setError] = useState(null),
     [version, setVersion] = useState(0),
@@ -840,7 +839,7 @@ export function Roster({ notify, onFindStaff }) {
     if (!siteId && sites.items.length) setSiteId(sites.items[0].id);
   }, [sites.items, siteId]);
   const site = sites.items.find((s) => s.id === siteId),
-    zone = site?.timezone ?? "Asia/Singapore",
+    zone = HONG_KONG_TIMEZONE,
     days = Array.from({ length: 7 }, (_, i) => dayAfter(week, i));
   useEffect(() => {
     if (!site) return;

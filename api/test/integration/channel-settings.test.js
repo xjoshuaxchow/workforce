@@ -76,14 +76,13 @@ async function save(patch = {}) {
   });
 }
 
-test("Channel settings are admin-only and include Cantonese Mandarin English configuration", async () => {
+test("Channel settings are admin-only and include English and Cantonese configuration", async () => {
   await setup();
   const r = await api("GET", "/api/settings/channels");
   assert.equal(r.status, 200);
   assert.deepEqual(Object.keys(r.body.config.templates).sort(), [
     "en",
     "yue",
-    "zh",
   ]);
   await login("site_manager");
   assert.equal((await api("GET", "/api/settings/channels")).status, 403);
@@ -324,13 +323,6 @@ const liveVoice = {
   publicBaseUrl: "https://voice.example.test",
 };
 const encodedMp3 = Buffer.concat(Array.from({length:2},()=>{const frame=Buffer.alloc(417);Buffer.from([0xff,0xfb,0x90,0x00]).copy(frame);return frame;}));
-async function azureMode() {
-  const current=await settings.current();
-  assert.ok(current.config.voiceSynthesis,'Azure settings are required');
-  current.config.voiceClips.mode='azure-mp3';
-  Object.assign(current.config.voiceSynthesis,{region:'eastasia',key:'private-azure-test-key'});
-  return settings.save({role:'admin',id:null},{expectedVersion:current.id,config:current.config});
-}
 async function generate(id,item,extra={}) {
   return api('POST',`/api/requests/${id}/voice-synthesis`,{language:item.language,purpose:item.purpose,expectedHash:item.hash,...extra});
 }
@@ -352,7 +344,8 @@ test('English spoken Site fields persist and independent audition does not chang
   const generated=await generate(request.id,english.required[0],{previewOnly:true});assert.equal(generated.status,200,JSON.stringify(generated.body));
   assert.equal((await pool.query('SELECT language FROM staff WHERE id=$1',[staff.id])).rows[0].language,'yue');
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM attempts WHERE request_id=$1',[request.id])).rows[0].n,0);
-  assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,409,'English audition must not satisfy required Cantonese dispatch');
+  assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,200,'Dispatch prepares required Cantonese independently of English audition');
+  assert.ok((await pool.query("SELECT 1 FROM request_voice_plans WHERE request_id=$1 AND language='yue'",[request.id])).rowCount);
 });
 test('English audition explains missing spoken address before calling the local engine',async()=>{
   let calls=0;await setupRuntime({localClientFactory:installedLocal(async()=>{calls++;return encodedMp3;})});await localMode();const {request}=await voiceRequest('yue');
@@ -385,16 +378,16 @@ test('Draft users edit and regenerate one purpose, keep other MP3 and restore th
   const restored=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
   assert.equal(restored.hash,original.hash);assert.equal(restored.asset_id,original.asset_id);assert.equal(restored.customized,false);assert.equal(calls,7);
 });
-test('Editing a shared ending is isolated to its work and stores a Site-scoped recording',async()=>{
+test('Editing a shared ending changes only the edited work script while identical content remains reusable',async()=>{
   await setupRuntime({localClientFactory:installedLocal(async()=>encodedMp3)});await localMode();
   const first=await voiceRequest('yue'), second=await voiceRequest('yue');
   const view=async id=>(await api('GET',`/api/requests/${id}/voice-preview`)).body.languages[0].required;
   const ack=(await view(first.request.id)).find(x=>x.purpose==='ack');assert.equal((await generate(first.request.id,ack)).status,200);
   const edited=await editVoiceText(first.request.id,ack,['已收到，多謝你。']);assert.equal(edited.status,200);
-  const custom=(await view(first.request.id)).find(x=>x.purpose==='ack');assert.equal(custom.shared,false);assert.notEqual(custom.hash,ack.hash);
+  const custom=(await view(first.request.id)).find(x=>x.purpose==='ack');assert.equal(custom.shared,true);assert.notEqual(custom.hash,ack.hash);
   const made=await generate(first.request.id,custom);assert.equal(made.status,200);
   const asset=(await pool.query('SELECT request_id,site_id FROM voice_assets WHERE id=$1',[made.body.asset_id])).rows[0];
-  assert.equal(asset.request_id,first.request.id);assert.equal(asset.site_id,first.request.site_id);
+  assert.equal(asset.request_id,null);assert.equal(asset.site_id,null);
   const other=(await view(second.request.id)).find(x=>x.purpose==='ack');assert.equal(other.hash,ack.hash);assert.equal(other.state,'ready');assert.equal(other.customized,false);
 });
 test('Draft text edits reject malformed parts, stale revisions and unauthorized Site access',async()=>{
@@ -419,7 +412,6 @@ test('In-flight old generation cannot satisfy an edited script and published wor
   release(encodedMp3);assert.equal((await pending).status,200);
   let plan=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0];
   assert.notEqual(plan.required[0].hash,original.hash);assert.equal(plan.required[0].state,'missing');
-  assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,409);
   for(const item of plan.required)assert.equal((await generate(request.id,item)).status,200);
   assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,200);
   plan=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0];
@@ -427,7 +419,7 @@ test('In-flight old generation cannot satisfy an edited script and published wor
 });
 test('Local MP3 mode generates Cantonese and English without Azure, reuses files, and invalidates changed speed/content',async()=>{
   let generated=0;
-  await setupRuntime({localClientFactory:installedLocal(async()=>{generated++;return encodedMp3;}),azureClientFactory:()=>({synthesize:async()=>{throw Error('Azure must not run');}})});
+  await setupRuntime({localClientFactory:installedLocal(async()=>{generated++;return encodedMp3;})});
   await localMode();
   for(const language of ['yue','en']){
     const {request}=await voiceRequest(language);
@@ -441,7 +433,9 @@ test('Local MP3 mode generates Cantonese and English without Azure, reuses files
     const stale=structuredClone(item);
     await pool.query("UPDATE sites SET address='changed' WHERE id=$1",[request.site_id]);
     assert.equal((await generate(request.id,stale)).status,409);
-    assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,409);
+    // The changed script remains missing until explicitly prepared or sent.
+    const changed=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
+    assert.notEqual(changed.hash,stale.hash);
   }
   assert.equal(generated,2);
   const {request}=await voiceRequest('yue');
@@ -490,7 +484,7 @@ test('Local full MP3 and DTMF use pinned Play after settings change; shared prom
   assert.equal(count,6);
   await localMode();const fresh=await voiceRequest('yue');
   const required=(await api('GET',`/api/requests/${fresh.request.id}/voice-preview`)).body.languages[0].required;
-  assert.equal(required.filter(x=>x.state==='ready').length,3);
+  assert.equal(required.filter(x=>x.state==='ready').length,5);
 });
 test('Real local models persist playable English and Cantonese MP3 and dispatch pinned Play', {skip:process.env.LOCAL_TTS_SMOKE!=='1'}, async()=>{
   const {writeFile,mkdir}=await import('node:fs/promises');
@@ -516,109 +510,6 @@ test('Real local models persist playable English and Cantonese MP3 and dispatch 
     assert.match(xml,/<Play>/);assert.doesNotMatch(xml,/<Say/);
   }
 });
-test('Azure settings redact and preserve Key, validate region and voice language, and old clients do not erase Azure config',async()=>{
-  await setup();await azureMode();
-  let view=(await api('GET','/api/settings/channels')).body;
-  assert.equal(view.config.voiceSynthesis.key,undefined);assert.equal(view.config.voiceSynthesis.keyConfigured,true);
-  assert.ok(!JSON.stringify((await pool.query('SELECT * FROM audit_log')).rows).includes('private-azure-test-key'));
-  delete view.config.voice.authTokenConfigured;delete view.config.whatsapp.keyConfigured;delete view.config.voiceSynthesis;
-  assert.equal((await api('PATCH','/api/settings/channels',{expectedVersion:view.id,config:view.config})).status,200);
-  assert.equal((await settings.current()).config.voiceSynthesis.key,'private-azure-test-key');
-  for(const change of [c=>c.voiceSynthesis.region='eastasia.evil/path',c=>c.voiceSynthesis.voices.yue='en-GB-SoniaNeural']){
-    const current=await settings.current();change(current.config);
-    assert.equal((await api('PATCH','/api/settings/channels',{expectedVersion:current.id,config:current.config})).status,400);
-  }
-});
-test('Azure generation reserves each hash once across concurrent requests and returns the same cached full MP3 after key/region replacement',async()=>{
-  let release,started,paid=0;
-  const begun=new Promise(r=>started=r);
-  await setupRuntime({azureClientFactory:()=>({synthesize:async()=>{paid++;started();return new Promise(r=>release=r);}})});
-  await azureMode();const {request}=await voiceRequest('en');
-  const preview=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body;
-  assert.equal(preview.mode,'azure-mp3');
-  const item=preview.languages[0].required.find(x=>x.purpose==='offer');
-  assert.equal(item.state,'missing');assert.match(item.script,/Hello there/);
-  const first=generate(request.id,item);await begun;
-  const second=await generate(request.id,item);assert.equal(second.status,202);assert.equal(paid,1);
-  const switched=await settings.current();switched.config.voiceSynthesis.key='company-test-key';switched.config.voiceSynthesis.region='southeastasia';
-  await settings.save({role:'admin',id:null},{expectedVersion:switched.id,config:switched.config});
-  release(encodedMp3);const done=await first;assert.equal(done.status,200);assert.equal(done.body.state,'ready');
-  const again=await generate(request.id,item);assert.equal(again.body.asset_id,done.body.asset_id);assert.equal(paid,1);
-  const changed=await settings.current();changed.config.voiceSynthesis.key='company-test-key';changed.config.voiceSynthesis.region='southeastasia';
-  await settings.save({role:'admin',id:null},{expectedVersion:changed.id,config:changed.config});
-  const same=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required.find(x=>x.purpose==='offer');
-  assert.equal(same.hash,item.hash);assert.equal(same.asset_id,done.body.asset_id);
-  assert.equal((await generate(request.id,same)).status,200);assert.equal(paid,1);
-  assert.equal((await fetch(base+done.body.playback_path)).status,200);
-  assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,409);
-});
-test('Azure completion does not hold synthesis lock while waiting for a concurrent draft command',async()=>{
-  let release,started;const begun=new Promise(r=>started=r);
-  await setupRuntime({azureClientFactory:()=>({synthesize:async()=>{started();return new Promise(r=>release=r);}})});
-  await azureMode();const {request}=await voiceRequest('en');
-  const item=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
-  const first=generate(request.id,item);await begun;
-  const blocker=await pool.connect();
-  try {
-    await blocker.query('BEGIN');await blocker.query('SELECT id FROM requests WHERE id=$1 FOR UPDATE',[request.id]);
-    release(encodedMp3);
-    let waiting=false;
-    for(let i=0;i<100;i++){
-      const result=await pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND (query LIKE 'INSERT INTO voice_assets%' OR query LIKE 'SELECT id FROM requests%')");
-      if(result.rowCount){waiting=true;break;}
-      await new Promise(r=>setTimeout(r,10));
-    }
-    assert.equal(waiting,true,'Synthesis completion should reach the held request lock');
-    await assert.doesNotReject(blocker.query('SELECT hash FROM voice_syntheses WHERE hash=$1 FOR UPDATE NOWAIT',[item.hash]),'Completion must acquire the request lock before the synthesis lock');
-  } finally {await blocker.query('ROLLBACK');blocker.release();}
-  assert.equal((await first).status,200);
-});
-test('Azure generation rejects stale scripts and unauthorized Site access without calling the provider',async()=>{
-  let paid=0;await setupRuntime({azureClientFactory:()=>({synthesize:async()=>{paid++;return encodedMp3;}})});
-  await azureMode();const {request}=await voiceRequest('yue');
-  const item=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
-  await pool.query("UPDATE sites SET address='Changed Road' WHERE id=$1",[request.site_id]);
-  assert.equal((await generate(request.id,item)).status,409);assert.equal(paid,0);
-  await login('site_manager');
-  assert.equal((await api('GET',`/api/requests/${request.id}/voice-preview`)).status,404);
-  assert.equal((await generate(request.id,item)).status,404);assert.equal(paid,0);
-});
-test('Uncertain Azure generation is not automatically resubmitted and explicit retry is versioned',async()=>{
-  let paid=0;
-  await setupRuntime({azureClientFactory:()=>({synthesize:async()=>{paid++;if(paid===1)throw Object.assign(Error('private-azure-test-key'),{uncertain:true});return encodedMp3;}})});
-  await azureMode();const {request}=await voiceRequest('yue');
-  const item=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
-  const failed=await generate(request.id,item);assert.equal(failed.status,409);assert.equal(failed.body.state,'unknown');
-  assert.ok(!JSON.stringify(failed.body).includes('private-azure-test-key'));
-  assert.equal((await generate(request.id,item)).status,409);assert.equal(paid,1);
-  assert.equal((await generate(request.id,item,{retryGeneration:failed.body.generation-1})).status,400);
-  assert.equal((await generate(request.id,item,{retryGeneration:failed.body.generation})).status,200);assert.equal(paid,2);
-  assert.equal((await generate(request.id,item,{retryGeneration:failed.body.generation})).status,200);assert.equal(paid,2);
-});
-test('Azure full-file playback is pinned before dispatch and common endings are generated once across works',async()=>{
-  let paid=0;
-  await setupRuntime({azureClientFactory:()=>({synthesize:async()=>{paid++;return encodedMp3;}})});
-  await save({voice:liveVoice});await azureMode();
-  const {request,staff}=await voiceRequest('en');
-  const preview=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body;
-  for(const item of preview.languages[0].required)assert.equal((await generate(request.id,item)).status,200);
-  assert.equal(paid,6);
-  assert.equal((await api('POST',`/api/requests/${request.id}/send`,{})).status,200);
-  const next=await settings.current();next.config.voiceClips.mode='say';
-  await settings.save({role:'admin',id:null},{expectedVersion:next.id,config:next.config});
-  const {runJobs}=await import('../../src/messaging.js');
-  await runJobs(pool,()=>new Date(),{pstn:runtime.pstn,whatsapp:runtime.whatsapp});
-  const attempt=(await pool.query("SELECT * FROM attempts WHERE request_id=$1 AND purpose='offer'",[request.id])).rows[0];
-  const xml=await(await signedVoice(attempt,staff,liveVoice.authToken)).text();
-  assert.equal((xml.match(/<Play>/g)||[]).length,1);assert.doesNotMatch(xml,/<Say/);
-  assert.match(await(await signedVoice(attempt,staff,liveVoice.authToken,'1')).text(),/<Play>/);
-  assert.equal(paid,6);
-  await azureMode();const fresh=await voiceRequest('en');
-  const pending=(await api('GET',`/api/requests/${fresh.request.id}/voice-preview`)).body.languages[0].required;
-  assert.equal(pending.filter(x=>x.state==='ready').length,3);
-  for(const item of pending.filter(x=>x.state!=='ready'))assert.equal((await generate(fresh.request.id,item)).status,200);
-  assert.equal(paid,9);
-});
 test("Voice editor exposes defaults for old settings and rejects changed locked layout, blank prompts and excess copy", async () => {
   await setup();
   const view = (await api("GET", "/api/settings/channels")).body;
@@ -643,14 +534,14 @@ test("Saved fixed copy is pinned before worker submission and inherited by confi
   const first = await settings.current();
   assert.ok(first.config.voiceTexts, "Editable text defaults are required");
   first.config.voiceTexts.yue.offer[1] = "，A版工作邀請，地點係";
-  first.config.voiceTexts.yue.confirmation[1] = "，A版接單確認，地點係";
+  first.config.voiceTexts.yue.confirmation[0] = "，A版接單確認，地點係";
   first.config.voiceTexts.yue.ack[0] = "A版已收到 <Hangup/>。";
   const aVersion = await settings.save({ role: "admin", id: null }, { expectedVersion: first.id, config: first.config });
   const { request, staff } = await voiceRequest("yue");
   assert.equal((await api("POST", `/api/requests/${request.id}/send`, {})).status, 200);
   const next = await settings.current();
   next.config.voiceTexts.yue.offer[1] = "，B版工作邀請，地點係";
-  next.config.voiceTexts.yue.confirmation[1] = "，B版接單確認，地點係";
+  next.config.voiceTexts.yue.confirmation[0] = "，B版接單確認，地點係";
   await settings.save({ role: "admin", id: null }, { expectedVersion: next.id, config: next.config });
   const { runJobs } = await import("../../src/messaging.js");
   const run = () => runJobs(pool, () => new Date(), { pstn: runtime.pstn, whatsapp: runtime.whatsapp });
@@ -948,7 +839,7 @@ test("WhatsApp template CRUD uses the configured microservice Bearer key and nev
     await new Promise((r) => remote.close(r));
   }
 });
-test("Runtime selects approved English Cantonese Mandarin templates from employee language", async () => {
+test("Runtime selects approved English and Cantonese templates from employee language", async () => {
   await setupRuntime();
   const current = await settings.current();
   Object.assign(current.config.whatsapp, {
@@ -1036,7 +927,7 @@ test("Runtime selects approved English Cantonese Mandarin templates from employe
   await new Promise((r) => server.once("listening", r));
   base = "http://127.0.0.1:" + server.address().port;
   const { runJobs } = await import("../../src/messaging.js");
-  for (const language of ["en", "yue", "zh"]) {
+  for (const language of ["en", "yue"]) {
     const { request } = await voiceRequest(language, ["whatsapp"]);
     assert.equal(
       (await api("POST", `/api/requests/${request.id}/send`, {})).status,
@@ -1049,11 +940,11 @@ test("Runtime selects approved English Cantonese Mandarin templates from employe
   }
   assert.deepEqual(
     sent.map((x) => x.template.language),
-    ["en", "zh_HK", "zh_CN"],
+    ["en", "zh_HK"],
   );
   assert.deepEqual(
     sent.map((x) => x.template.name),
-    ["en_shift_offer_v1", "yue_shift_offer_v1", "zh_shift_offer_v1"],
+    ["en_shift_offer_v1", "yue_shift_offer_v1"],
   );
   approved = false;
   const bad = await voiceRequest("en", ["whatsapp"]);
@@ -1062,7 +953,7 @@ test("Runtime selects approved English Cantonese Mandarin templates from employe
     pstn: runtime.pstn,
     whatsapp: runtime.whatsapp,
   });
-  assert.equal(sent.length, 3);
+  assert.equal(sent.length, 2);
   assert.equal(
     (
       await pool.query("SELECT status FROM attempts WHERE request_id=$1", [
@@ -1223,7 +1114,7 @@ test('Clips preview omits ineligible staff and WhatsApp-only offers only need th
   preview=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body;
   assert.deepEqual(preview.languages,[]);
 });
-for(const [language,digit,response] of [['zh','2','decline'],['en','',null]]) {
+for(const [language,digit,response] of [['yue','2','decline'],['en','',null]]) {
   test(`Recorded ${language} DTMF ${digit || 'no input'} uses recorded ending and preserves business response`,async()=>{
     await setupRuntime();await save({voice:liveVoice});
     const {request,staff}=await voiceRequest(language);
@@ -1279,14 +1170,14 @@ for (const [language, digit, phrase, response] of [
       const follow = (await pool.query("SELECT * FROM attempts WHERE request_id=$1 AND purpose='confirmation'", [request.id])).rows[0];
       const confirmed = await signedVoice(follow, staff, liveVoice.authToken);
       const xml = await confirmed.text();
-      assert.match(xml, /你嘅更次已確認/);
+      assert.match(xml, /你嘅更次已經確認/);
       assert.match(xml, /language="yue-HK"/);
       assert.doesNotMatch(xml, /<Gather|<Play/);
       assert.equal((await api("POST", `/api/requests/${request.id}/cancel`, {})).status, 200);
       await run();
       const cancellation = (await pool.query("SELECT * FROM attempts WHERE request_id=$1 AND purpose='cancellation'", [request.id])).rows[0];
       const cancelled = await signedVoice(cancellation, staff, liveVoice.authToken);
-      assert.match(await cancelled.text(), /你嘅更次已取消/);
+      assert.match(await cancelled.text(), /你嘅工作安排已經取消/);
     }
   });
 }
@@ -1480,7 +1371,7 @@ test("Say consent fallback needs no followup recordings and freezes language for
   assert.equal(follow.status, "sent");
   assert.equal(follow.language_snapshot, "en");
   const spoken = await signedVoice(follow, staff, liveVoice.authToken);
-  assert.match(await spoken.text(), /Your shift is confirmed/);
+  assert.match(await spoken.text(), /Your shift has been confirmed/);
 });
 test("Review settings reject missing archived wrong-language and request-specific prompt references atomically", async () => {
   await setup();
@@ -1704,7 +1595,7 @@ test("Real WhatsApp mode can be saved before templates exist and runtime status 
   assert.equal(result.status, 200);
   const active = await settings.current();
   assert.equal(active.config.whatsapp.mode, "service");
-  for (const language of ["en", "yue", "zh"])
+  for (const language of ["en", "yue"])
     assert.ok(Object.values(active.config.templates[language]).every(template => template.name === ""));
   const { createChannelRuntime } = await import("../../src/channel-runtime.js");
   const runtime = createChannelRuntime({ pool, settings });
@@ -1723,4 +1614,87 @@ test("Early WhatsApp activation still rejects invalid configured reply buttons",
   assert.equal(result.status, 400);
   assert.match(JSON.stringify(result.body.errors), /distinct/);
   assert.equal((await settings.current()).id, current.id);
+});
+
+test('Sending local MP3 work prepares missing audio automatically and reuses fixed follow-ups',async()=>{
+ let generated=0;
+ await setupRuntime({localClientFactory:installedLocal(async()=>{generated++;return encodedMp3;})});
+ await localMode();const first=await voiceRequest('yue');
+ const sent=await api('POST',`/api/requests/${first.request.id}/send`,{});
+ assert.equal(sent.status,200,JSON.stringify(sent.body));assert.equal(sent.body.status,'open');assert.equal(generated,6);
+ const second=await voiceRequest('yue');
+ const next=await api('POST',`/api/requests/${second.request.id}/send`,{});
+ assert.equal(next.status,200,JSON.stringify(next.body));assert.equal(generated,7,'Only the new invitation should require synthesis');
+ const plans=(await pool.query('SELECT plan FROM request_voice_plans ORDER BY request_id')).rows.map(r=>r.plan);
+ assert.equal(plans.length,2);
+ for(const kind of ['confirmation','cancellation'])assert.equal(plans[0].voices[kind].audio.main,plans[1].voices[kind].audio.main);
+});
+test('Automatic preparation leaves a failed work in draft and creates no attempts',async()=>{
+ await setupRuntime({localClientFactory:installedLocal(async()=>{throw Error('private engine details');})});
+ await localMode();const {request}=await voiceRequest('yue');
+ const sent=await api('POST',`/api/requests/${request.id}/send`,{});
+ assert.equal(sent.status,409);assert.match(sent.body.message,/語音/);assert.doesNotMatch(JSON.stringify(sent.body),/private engine/);
+ assert.equal((await pool.query("SELECT count(*)::int AS n FROM voice_syntheses WHERE state='failed'")).rows[0].n,1);
+ assert.equal((await pool.query('SELECT status FROM requests WHERE id=$1',[request.id])).rows[0].status,'draft');
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM attempts WHERE request_id=$1',[request.id])).rows[0].n,0);
+});
+test('Concurrent identical invitation preparation converges to one shared asset',async()=>{
+ let calls=0;await setupRuntime({localClientFactory:installedLocal(async()=>{calls++;await new Promise(r=>setTimeout(r,30));return encodedMp3;})});await localMode();
+ const first=await voiceRequest('yue');
+ const second=(await api('POST','/api/requests',{site_id:first.request.site_id,mode:'direct',staff_id:first.staff.id,headcount:1,channels:['voice'],start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'})).body;
+ const made=await Promise.all([first.request.id,second.id].map(id=>api('POST',`/api/requests/${id}/voice-prepare`,{})));
+ for(const result of made)assert.equal(result.status,200,JSON.stringify(result.body));
+ assert.equal(calls,6);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM voice_syntheses WHERE state=\'ready\'')).rows[0].n,6);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM voice_assets WHERE request_id IS NOT NULL')).rows[0].n,0);
+});
+test('Consent confirmation preserves its timestamp/source on unrelated edits and records the actor',async()=>{
+ await setup();
+ const made=await api('POST','/api/staff',{name:'Consent test',mobile:'+85296644718',whatsapp_opt_in:true});
+ assert.equal(made.status,201);assert.equal(made.body.whatsapp_opt_in_source,'admin_confirmation');assert.ok(made.body.whatsapp_opt_in_at);
+ const edited=await api('PATCH',`/api/staff/${made.body.id}`,{name:'Renamed'});
+ assert.equal(edited.body.whatsapp_opt_in_at,made.body.whatsapp_opt_in_at);assert.equal(edited.body.whatsapp_opt_in_source,'admin_confirmation');
+ const audit=(await pool.query("SELECT actor_id FROM audit_log WHERE entity_id=$1 AND action='staff.created'",[made.body.id])).rows[0];
+ assert.equal(audit.actor_id,(await pool.query("SELECT id FROM users WHERE email='admin@settings.test'")).rows[0].id);
+ const revoked=await api('PATCH',`/api/staff/${made.body.id}`,{whatsapp_opt_in:false});
+ assert.equal(revoked.body.whatsapp_opt_in_at,null);assert.equal(revoked.body.whatsapp_opt_in_source,null);
+});
+test('Changing active settings during automatic preparation leaves the work unsent',async()=>{
+ let started,release;const begun=new Promise(r=>started=r);let calls=0;
+ await setupRuntime({localClientFactory:installedLocal(async()=>{if(++calls===1){started();return new Promise(r=>release=r);}return encodedMp3;})});
+ await localMode();const {request}=await voiceRequest('yue');
+ const pending=api('POST',`/api/requests/${request.id}/send`,{});await begun;
+ await localMode(0.9);release(encodedMp3);
+ const result=await pending;assert.equal(result.status,409);assert.equal(result.body.reason,'settings_revision_changed');
+ assert.equal((await pool.query('SELECT status FROM requests WHERE id=$1',[request.id])).rows[0].status,'draft');
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM attempts WHERE request_id=$1',[request.id])).rows[0].n,0);
+});
+test('Legacy Azure configuration is removed from active settings while historical versions remain readable',async()=>{
+ await setup();const current=await settings.current();
+ const old=structuredClone(current.config);old.voiceClips.mode='azure-mp3';old.voiceSynthesis={region:'eastasia',key:'legacy-private-fixture-key'};
+ old.voiceTexts.yue.confirmation=['','，舊確認','，由','至','。'];
+ old.templates.zh=structuredClone(old.templates.yue);
+ await pool.query('UPDATE messaging_settings_versions SET encrypted_config=$2 WHERE id=$1',[current.id,impl.sealSettings(Buffer.alloc(32,1),old)]);
+ const view=await api('GET','/api/settings/channels');assert.equal(view.status,200);
+ assert.equal(view.body.config.voiceClips.mode,'local-mp3');assert.equal(view.body.config.voiceSynthesis,undefined);
+ assert.deepEqual(Object.keys(view.body.config.templates).sort(),['en','yue']);assert.equal(view.body.config.voiceTexts.yue.confirmation.length,1);
+ assert.doesNotMatch(JSON.stringify(view.body),/legacy-private-fixture-key/);
+ assert.equal((await settings.get(current.id)).config.voiceClips.mode,'azure-mp3');
+ const saved=await localMode();assert.equal((await settings.get(saved.id)).config.voiceSynthesis,undefined);
+});
+test('A historical five-part customized draft confirmation can still be edited',async()=>{
+ await setupRuntime({localClientFactory:installedLocal(async()=>encodedMp3)});await localMode();const {request}=await voiceRequest('yue');
+ const revision=(await import('node:crypto')).randomUUID();
+ await pool.query('INSERT INTO request_voice_texts(request_id,language,purpose,parts,revision,utime) VALUES($1,$2,$3,$4::jsonb,$5,now())',[request.id,'yue','confirmation',JSON.stringify(['同事','，舊確認：','，由','至','。']),revision]);
+ const item=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required.find(x=>x.purpose==='confirmation');
+ assert.equal(item.parts.length,5);assert.equal(item.tokens.length,4);
+ const parts=[...item.parts];parts[1]='，修改確認：';
+ const result=await editVoiceText(request.id,item,parts);assert.equal(result.status,200,JSON.stringify(result.body));assert.match(result.body.script,/修改確認/);
+});
+test('Roster vacancy warnings group the same Hong Kong date as displayed shifts',async()=>{
+ await setup();const {request}=await voiceRequest('yue');
+ await pool.query("UPDATE sites SET timezone='America/New_York' WHERE id=$1",[request.site_id]);
+ const shift=await api('POST','/api/shifts',{site_id:request.site_id,start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'});assert.equal(shift.status,201);
+ const view=await api('GET',`/api/sites/${request.site_id}/roster?from=2099-11-09T00:00:00Z&to=2099-11-12T00:00:00Z`);
+ assert.equal(view.status,200);assert.equal(view.body.timezone,'Asia/Hong_Kong');assert.equal(view.body.days['2099-11-10'].open_shifts,1);assert.equal(view.body.days['2099-11-09'],undefined);
 });

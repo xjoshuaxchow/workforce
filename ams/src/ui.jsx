@@ -1,3 +1,4 @@
+import { HONG_KONG_TIMEZONE } from "./time.js";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
 export function ErrorNotice({ error }) {
@@ -28,13 +29,13 @@ export function mutationNotice(message, warnings = []) {
           <li key={s.id}>
             {s.site_name ?? "工作地點"} ·{" "}
             {new Intl.DateTimeFormat("zh-HK", {
-              timeZone: s.timezone ?? "UTC",
+              timeZone: HONG_KONG_TIMEZONE,
               dateStyle: "medium",
               timeStyle: "short",
             }).format(new Date(s.start_at))}{" "}
             至{" "}
             {new Intl.DateTimeFormat("zh-HK", {
-              timeZone: s.timezone ?? "UTC",
+              timeZone: HONG_KONG_TIMEZONE,
               timeStyle: "short",
             }).format(new Date(s.end_at))}
           </li>

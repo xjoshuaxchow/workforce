@@ -39,16 +39,17 @@ for (const [language, voice, locale, dates, action] of [
       const follow = voiceTwiml(payload(language, purpose));
       assert.ok(follow.includes(`language="${locale}"`));
       assert.doesNotMatch(follow, /<Gather|<Play/);
-      if (purpose !== "filled") for (const text of dates) assert.ok(follow.includes(text), text);
+      for (const text of dates) assert.ok(!follow.includes(text), text);
     }
   });
 }
-test("Say follows the Site timezone rather than UTC or the execution host", () => {
-  const xml = voiceTwiml(payload("en", "confirmation", { ...site, timezone: "America/New_York" }));
+test("New Say content uses Hong Kong time regardless of historical site or execution host timezone", () => {
+  const xml = voiceTwiml(payload("en", "offer", { ...site, timezone: "America/New_York" }));
   assert.match(xml, /10 November 2099/);
-  assert.match(xml, /10:30/);
-  assert.match(xml, /12:00/);
-  assert.doesNotMatch(xml, /11 November|23:30/);
+  assert.match(xml, /23:30/);
+  assert.match(xml, /01:00/);
+  assert.match(xml, /11 November/);
+  assert.doesNotMatch(xml, /10:30|12:00/);
 });
 test("Say rejects unsupported employee language instead of silently speaking English", () => {
   assert.throws(() => payload("fr"), /language/i);
