@@ -632,30 +632,35 @@ export function createApp({
         level: "warn", event: "whatsapp.request.failed",
         status: error.status, code: error.code, metaCode: error.metaCode,
       }));
+      let status = 502;
       let reason = "whatsapp_service_error";
       let message = "WhatsApp 微服務未能完成請求，請檢查服務狀態後重試。";
       if (error.code === "META_ERROR") {
         reason = "whatsapp_meta_error";
         message = "Meta 未能完成請求，請檢查 WhatsApp 帳戶設定後重試。";
         if (error.metaCode === 190) {
+          status = 400;
           reason = "whatsapp_access_token_invalid";
           message = "Meta Access Token 已過期或無效。請更新伺服器的 WHATSAPP_ACCESS_TOKEN，並重新建立 WhatsApp API 和 Worker 容器。";
         } else if (error.metaCode === 100) {
+          status = 400;
           reason = "whatsapp_meta_request_invalid";
-          message = "Meta 請求的參數或資源不正確，請核對 WABA ID、範本設定及帳戶權限。";
+          message = "Meta 無法存取資源或請求參數不正確。請核對 WABA ID、系統使用者的 WhatsApp 帳戶資產授權及範本設定。";
         } else if ([10, 200].includes(error.metaCode)) {
+          status = 400;
           reason = "whatsapp_meta_permission_denied";
           message = "Meta 拒絕存取，請確認 Access Token 的 WhatsApp 權限，以及對應帳戶已指派給此使用者。";
         }
         if (error.metaCode !== undefined) message += `（Meta 錯誤代碼 ${error.metaCode}）`;
       } else if (error.status === 401 || error.status === 403) {
+        status = 400;
         reason = "whatsapp_service_auth_failed";
         message = "WhatsApp 微服務驗證失敗，請核對 AMS 儲存的 WhatsApp API key。";
       } else if (error.code === "UNAVAILABLE") {
         reason = "whatsapp_service_unavailable";
         message = "無法連接 WhatsApp 微服務，請檢查服務網址、容器狀態及內部網絡。";
       }
-      return res.status(502).json({ message, reason });
+      return res.status(status).json({ message, reason });
     }
     if (error instanceof AppError)
       return res.status(error.status).json({

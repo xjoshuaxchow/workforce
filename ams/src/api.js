@@ -6,6 +6,10 @@ export async function api(path, { method = "GET", body } = {}) {
     !path.startsWith("/auth/");
   if (mutation && !observedMessagingMode)
     throw Error("傳送模式未確認，請稍後重試");
+  if (path === "/messaging/status") {
+    observedMessagingMode = null;
+    observedSettingsRevision = null;
+  }
   const response = await fetch(`/api${path}`, {
     method,
     credentials: "same-origin",
@@ -22,7 +26,20 @@ export async function api(path, { method = "GET", body } = {}) {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const value = await response.json();
+  if (response.status === 401 && !path.includes("/auth/"))
+    window.dispatchEvent(new Event("workforce:unauthorized"));
+  let value;
+  try {
+    value = await response.json();
+  } catch {
+    const error = new Error(
+      response.ok
+        ? `伺服器回應格式不正確（HTTP ${response.status}），請重新整理後再試。`
+        : `服務未能正常回應（HTTP ${response.status}），請稍後再試或檢查服務狀態。`,
+    );
+    Object.assign(error, { status: response.status, reason: "invalid_api_response" });
+    throw error;
+  }
   if (path === "/messaging/status") {
     observedSettingsRevision = response.ok
       ? (value.configuration_revision ?? null)
@@ -41,8 +58,6 @@ export async function api(path, { method = "GET", body } = {}) {
   if (!response.ok) {
     const error = new Error(value.message ?? "操作失敗");
     Object.assign(error, value, { status: response.status });
-    if (response.status === 401 && !path.includes("/auth/"))
-      window.dispatchEvent(new Event("workforce:unauthorized"));
     throw error;
   }
   return value;

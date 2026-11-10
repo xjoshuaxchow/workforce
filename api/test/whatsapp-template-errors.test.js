@@ -41,13 +41,13 @@ async function requestTemplates(t, status, body) {
 
 // Removing the WhatsApp error translation must fail these real HTTP route tests.
 for (const scenario of [
-  { name: "expired Meta token", status: 502, code: "META_ERROR", details: { code: 190, error_subcode: 463 }, reason: "whatsapp_access_token_invalid", hint: /WHATSAPP_ACCESS_TOKEN/ },
-  { name: "wrong Meta resource", status: 422, code: "META_ERROR", details: { code: 100 }, reason: "whatsapp_meta_request_invalid", hint: /WABA/ },
-  { name: "missing Meta permission", status: 502, code: "META_ERROR", details: { code: 200 }, reason: "whatsapp_meta_permission_denied", hint: /權限/ },
-  { name: "microservice authentication failure", status: 401, code: "UNAUTHORIZED", reason: "whatsapp_service_auth_failed", hint: /API key/ },
-  { name: "unreachable microservice", status: 0, code: "UNAVAILABLE", reason: "whatsapp_service_unavailable", hint: /服務網址/ },
-  { name: "untrusted Meta error code", status: 502, code: "META_ERROR", details: { code: "190 fixture-private-token" }, reason: "whatsapp_meta_error", hint: /Meta/ },
-  { name: "unclassified Meta failure", status: 502, code: "META_ERROR", details: { code: 987654 }, reason: "whatsapp_meta_error", hint: /Meta/ },
+  { name: "expired Meta token", expectedStatus: 400, status: 502, code: "META_ERROR", details: { code: 190, error_subcode: 463 }, reason: "whatsapp_access_token_invalid", hint: /WHATSAPP_ACCESS_TOKEN/ },
+  { name: "wrong Meta resource", expectedStatus: 400, status: 422, code: "META_ERROR", details: { code: 100 }, reason: "whatsapp_meta_request_invalid", hint: /WABA/ },
+  { name: "missing Meta permission", expectedStatus: 400, status: 502, code: "META_ERROR", details: { code: 200 }, reason: "whatsapp_meta_permission_denied", hint: /權限/ },
+  { name: "microservice authentication failure", expectedStatus: 400, status: 401, code: "UNAUTHORIZED", reason: "whatsapp_service_auth_failed", hint: /API key/ },
+  { name: "unreachable microservice", expectedStatus: 502, status: 0, code: "UNAVAILABLE", reason: "whatsapp_service_unavailable", hint: /服務網址/ },
+  { name: "untrusted Meta error code", expectedStatus: 502, status: 502, code: "META_ERROR", details: { code: "190 fixture-private-token" }, reason: "whatsapp_meta_error", hint: /Meta/ },
+  { name: "unclassified Meta failure", expectedStatus: 502, status: 502, code: "META_ERROR", details: { code: 987654 }, reason: "whatsapp_meta_error", hint: /Meta/ },
 ]) {
   test("Template listing explains " + scenario.name + " without exposing upstream secrets", async t => {
     const result = await requestTemplates(t, scenario.status, {
@@ -57,7 +57,7 @@ for (const scenario of [
         details: { ...scenario.details, message: "fixture-private-token", access_token: "fixture-private-token" },
       },
     });
-    assert.equal(result.status, 502);
+    assert.equal(result.status, scenario.expectedStatus);
     assert.equal(result.body.reason, scenario.reason);
     assert.match(result.body.message, scenario.hint);
     assert.ok(!JSON.stringify(result).includes("fixture-private-token"));
