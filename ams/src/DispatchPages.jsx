@@ -209,6 +209,110 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     </Modal>
   );
 }
+function RequestEditor({ request, sites, deadlineOnly, onClose, onDone }) {
+  useI18n();
+  const draft = request.status === "draft";
+  const shiftEditable = draft && !request.open_shift_ids.length;
+  const headcountEditable = request.mode === "broadcast" && !request.open_shift_ids.length;
+  const zone = HONG_KONG_TIMEZONE;
+  const [initial] = useState(() => ({
+    site_id: request.site_id,
+    start_at: utcToLocal(request.start_at, zone),
+    end_at: utcToLocal(request.end_at, zone),
+    deadline_at: utcToLocal(request.deadline_at, zone),
+    headcount: String(request.headcount),
+    message: request.message,
+  }));
+  const [value, setValue] = useState(initial);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const change = (key) => (next) => setValue((current) => ({ ...current, [key]: next }));
+  const changeStart = (start_at) => setValue((current) => ({
+    ...current,
+    start_at,
+    deadline_at: current.deadline_at === current.start_at ? start_at : current.deadline_at,
+  }));
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const body = { expected_utime: request.utime };
+      const fields = deadlineOnly
+        ? ["deadline_at"]
+        : ["site_id", "start_at", "end_at", "deadline_at", "headcount", "message"];
+      for (const key of fields) {
+        if (value[key] === initial[key]) continue;
+        body[key] = key.endsWith("_at") ? localToUtc(value[key], zone)
+          : key === "headcount" ? Number(value[key]) : value[key];
+      }
+      if (deadlineOnly && (!body.deadline_at || Date.parse(body.deadline_at) <= Date.parse(request.deadline_at))) {
+        setError({ message: t("dispatch.deadlineLater") });
+        return;
+      }
+      await api(`/requests/${request.id}`, { method: "PATCH", body });
+      onDone();
+    } catch (e) {
+      const key = `dispatch.editError.${e.reason}`;
+      setError(hasMessage(key) ? { message: t(key) } : e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={t(deadlineOnly ? "dispatch.extendDeadline" : "dispatch.editRequest")} onClose={onClose}>
+      <ErrorNotice error={error} />
+      <form onSubmit={submit}>
+        {!deadlineOnly && (
+          <div className="form-grid">
+            {shiftEditable && <>
+              <Field
+                label={t("dispatch.site")}
+                value={value.site_id}
+                onChange={change("site_id")}
+                options={sites.filter((site) => site.status === "active" || site.id === request.site_id)
+                  .map((site) => [site.id, site.name])}
+              />
+              <Field label={t("dispatch.start")} type="datetime-local" value={value.start_at}
+                onChange={changeStart} required />
+              <Field label={t("dispatch.end")} type="datetime-local" value={value.end_at}
+                onChange={change("end_at")} required />
+            </>}
+            {headcountEditable && (
+              <Field label={t("dispatch.headcount")} required>
+                <input type="number" min={Math.max(1, request.accepted)} max={50}
+                  aria-label={t("dispatch.headcount")} value={value.headcount} onChange={(e) => change("headcount")(e.target.value)} required />
+              </Field>
+            )}
+            {draft && (
+              <Field label={t("dispatch.deadline")} type="datetime-local" value={value.deadline_at}
+                onChange={change("deadline_at")} required />
+            )}
+          </div>
+        )}
+        {deadlineOnly ? <>
+          <p className="muted">{t("dispatch.currentDeadline", { time: fmt(request.deadline_at, zone) })}</p>
+          <Field label={t("dispatch.newDeadline")} type="datetime-local" value={value.deadline_at}
+            onChange={change("deadline_at")} required />
+          <p className="muted">{t("dispatch.deadlineLimit", { time: fmt(request.start_at, zone) })}</p>
+        </> : <>
+          <Field label={t("dispatch.message")}>
+            <textarea value={value.message} maxLength={500} rows={3}
+              onChange={(e) => change("message")(e.target.value)} />
+          </Field>
+          {!draft && <p className="muted">{t("dispatch.sentEditHint")}</p>}
+          {!draft && headcountEditable && request.accepted > 0 &&
+            <p className="muted">{t("dispatch.headcountEditHint", { count: request.accepted })}</p>}
+        </>}
+        <div className="form-actions">
+          <button type="button" className="quiet" onClick={onClose}>{t("common.cancel")}</button>
+          <button disabled={busy}>{t("common.save")}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function VoiceAttempts({ attempts, zone }) {
   const calls = attempts.filter((attempt) => attempt.channel === "voice" && attempt.purpose === "offer");
   const latest = calls.at(-1);
@@ -245,6 +349,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
   const [data, setData] = useState(null),
     [error, setError] = useState(null),
     [confirm, setConfirm] = useState(null),
+    [editing, setEditing] = useState(null),
     [busy, setBusy] = useState(false),
     [voicePreparing, setVoicePreparing] = useState(false),
     [linked, setLinked] = useState([]),
@@ -298,6 +403,8 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
     );
   const site = sites.find((s) => s.id === data.site_id),
     zone = HONG_KONG_TIMEZONE;
+  const canEdit = ["draft", "open"].includes(data.status) && new Date(data.deadline_at) > new Date();
+  const canExtend = canEdit && data.status === "open" && new Date(data.deadline_at) < new Date(data.start_at);
   const redialCandidate = confirm?.kind === "redial" ? confirm.candidate : null;
   const redialStillAvailable = redialCandidate && data.candidates.some((candidate) =>
     candidate.id === redialCandidate.id &&
@@ -333,6 +440,18 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
               {busy || voicePreparing ? t("dispatch.preparingSend") : t("dispatch.send")}
             </button>
           )}
+          {canEdit && (
+            <button className="quiet" disabled={busy || voicePreparing}
+              onClick={() => setEditing({ request: data, deadlineOnly: false })}>
+              {t("dispatch.editRequest")}
+            </button>
+          )}
+          {canExtend && (
+            <button className="quiet" disabled={busy}
+              onClick={() => setEditing({ request: data, deadlineOnly: true })}>
+              {t("dispatch.extendDeadline")}
+            </button>
+          )}
           {["draft", "open", "filled"].includes(data.status) && (
             <button className="quiet" onClick={() => setConfirm("cancel")}>
               {t("dispatch.cancelRequest")}
@@ -355,8 +474,16 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
         <section className="panel metric">
           <p>{t("dispatch.deadlineZone", { zone })}</p>
           <strong>{fmt(data.deadline_at, zone)}</strong>
+          {canEdit && data.status === "open" && !canExtend &&
+            <small>{t("dispatch.deadlineAtStart")}</small>}
         </section>
       </div>
+      {data.message && (
+        <section className="panel request-message">
+          <h2>{t("dispatch.message")}</h2>
+          <p>{data.message}</p>
+        </section>
+      )}
       <section className="panel">
         <div className="section-title">
           <h2>{t("dispatch.candidates")}</h2>
@@ -567,6 +694,19 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
             </div>
           ))}
         </details>
+      )}
+      {editing && (
+        <RequestEditor
+          request={editing.request}
+          deadlineOnly={editing.deadlineOnly}
+          sites={sites}
+          onClose={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null);
+            load();
+            notify(t(editing.deadlineOnly ? "dispatch.deadlineExtended" : "dispatch.requestUpdated"));
+          }}
+        />
       )}
       {redialCandidate && (
         <Modal title={t("dispatch.redial")} onClose={closeRedial}>

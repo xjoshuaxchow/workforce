@@ -342,6 +342,7 @@ tbody tr:last-child td {
   color: #566777;
 }
 .field input,
+.field textarea,
 .field select {
   width: 100%;
 }
@@ -771,3 +772,6 @@ tbody tr:last-child td {
 .generated-audio-item h4 { margin: 0; }
 .generated-audio-item .speech-preview-text { line-height: 1.8; white-space: pre-wrap; }
 .generated-audio-item audio { display: block; width: min(100%, 480px); margin-top: 12px; }
+
+.request-message { margin-bottom: 16px; padding: 16px 20px; }
+.request-message p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

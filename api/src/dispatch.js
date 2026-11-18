@@ -481,6 +481,63 @@ export async function detail(db, user, id, redialContext) {
     }),
   };
 }
+const requestEdit = z.strictObject({
+  site_id: z.uuid().optional(),
+  start_at: z.string().optional(),
+  end_at: z.string().optional(),
+  deadline_at: z.string().optional(),
+  message: z.string().max(500).optional(),
+  headcount: z.number().int().min(1).max(50).optional(),
+  expected_utime: z.string().optional(),
+});
+
+async function siteStaff(db, siteId) {
+  return (await db.query(
+    `SELECT s.* FROM staff s JOIN site_staff l ON l.staff_id=s.id
+     WHERE l.site_id=$1 AND l.active ORDER BY s.ctime,s.id`,
+    [siteId],
+  )).rows;
+}
+
+async function reviseDraftCandidates(db, clock, user, before, request) {
+  const people = before.site_id !== request.site_id && request.mode === "broadcast"
+    ? await siteStaff(db, request.site_id)
+    : (await db.query(
+        `SELECT s.* FROM staff s JOIN candidates c ON c.staff_id=s.id
+         WHERE c.request_id=$1 AND c.selected ORDER BY c.ctime,c.id`,
+        [request.id],
+      )).rows;
+  const selected = [];
+  const excluded = [];
+  for (const staff of people) {
+    const reason = await eligible(db, request, staff);
+    if (reason) excluded.push({ staff_id: staff.id, name: staff.name, reason });
+    else selected.push(staff.id);
+  }
+
+  const removed = await db.query(
+    `UPDATE candidates SET selected=false
+     WHERE request_id=$1 AND selected AND NOT (staff_id=ANY($2::uuid[])) RETURNING *`,
+    [request.id, selected],
+  );
+  for (const candidate of removed.rows)
+    await audit(db, clock, user, "candidate.removed", "candidate", candidate.id,
+      { ...candidate, selected: true }, candidate, request.site_id);
+
+  const added = await db.query(
+    `INSERT INTO candidates(request_id,staff_id)
+     SELECT $1, staff_id FROM unnest($2::uuid[]) AS staff_id
+     ON CONFLICT(request_id,staff_id) DO UPDATE SET selected=true
+     WHERE NOT candidates.selected RETURNING *`,
+    [request.id, selected],
+  );
+  for (const candidate of added.rows)
+    await audit(db, clock, user, "candidate.added", "candidate", candidate.id,
+      null, candidate, request.site_id);
+
+  return excluded;
+}
+
 export function registerDispatch(
   app,
   { pool, clock, validateChannels = null, prepareChannels = null, elevenLabsPilot = null },
@@ -617,12 +674,7 @@ export function registerDispatch(
         b.mode === "direct"
           ? (await db.query("SELECT * FROM staff WHERE id=$1", [b.staff_id]))
               .rows
-          : (
-              await db.query(
-                "SELECT s.* FROM staff s JOIN site_staff l ON l.staff_id=s.id WHERE l.site_id=$1 AND l.active ORDER BY s.ctime,s.id",
-                [site.id],
-              )
-            ).rows;
+          : await siteStaff(db, site.id);
       if (b.mode === "direct" && !people.length) fail(404, "Staff not found");
       const excluded = [];
       for (const staff of people) {
@@ -681,11 +733,77 @@ export function registerDispatch(
     });
   });
   app.patch("/api/requests/:id", async (req, res) => {
-    await requestAccess(pool, req.user, req.params.id);
-    fail(
-      409,
-      "Request details cannot be edited; cancel and create a new request",
-    );
+    const parsed = requestEdit.safeParse(req.body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      validation(issue.path.join(".") || "request", issue.message);
+    }
+    const patch = parsed.data;
+    await mutate(pool, clock, async (db) => {
+      const before = await requestAccess(db, req.user, req.params.id, 404, true);
+      const draft = before.status === "draft";
+      const now = clock();
+      if ((!draft && before.status !== "open") || before.deadline_at <= now)
+        fail(409, "Only requests before their reply deadline can be edited.", { reason: "request_edit_closed" });
+      if (patch.expected_utime !== undefined && utc(patch.expected_utime, "expected_utime").getTime() !== before.utime.getTime())
+        fail(409, "The request was updated. Reopen the edit form.", { reason: "request_edit_changed" });
+
+      const siteId = patch.site_id?.toLowerCase() ?? before.site_id;
+      const start = patch.start_at === undefined ? before.start_at : utc(patch.start_at, "start_at");
+      const end = patch.end_at === undefined ? before.end_at : utc(patch.end_at, "end_at");
+      const shiftChanged = siteId !== before.site_id || +start !== +before.start_at || +end !== +before.end_at;
+      if (shiftChanged && (!draft || before.open_shift_ids.length))
+        fail(409, "Site and shift times are fixed for a sent or roster-linked request.", { reason: "request_edit_shift_locked" });
+      const range = validateRange(start.toISOString(), end.toISOString());
+
+      const defaultDeadline = draft && +before.deadline_at === +before.start_at
+        ? range.start_at
+        : before.deadline_at.toISOString();
+      const deadline = utc(patch.deadline_at ?? defaultDeadline, "deadline_at");
+      if (deadline <= now || deadline > start)
+        validation("deadline_at", "Must be after now and no later than start_at");
+      if (!draft && deadline < before.deadline_at)
+        validation("deadline_at", "Must be later than the current reply deadline");
+
+      const headcount = patch.headcount ?? before.headcount;
+      if (headcount !== before.headcount && (before.mode === "direct" || before.open_shift_ids.length))
+        fail(409, "Headcount is fixed for a direct or roster-linked request.", { reason: "request_edit_headcount_locked" });
+      const confirmed = draft ? 0 : (await db.query(
+        "SELECT count(*)::integer AS count FROM assignments WHERE request_id=$1 AND status='confirmed'",
+        [before.id],
+      )).rows[0].count;
+      if (headcount < confirmed)
+        validation("headcount", "Cannot be lower than the number of confirmed assignments");
+
+      const message = patch.message ?? before.message;
+      if (!shiftChanged && +deadline === +before.deadline_at && headcount === before.headcount && message === before.message)
+        return;
+      if (shiftChanged && (await siteAccess(db, req.user, siteId, 403, true)).status !== "active")
+        fail(409, "Site is inactive");
+      const status = !draft && headcount === confirmed ? "filled" : before.status;
+      const updated = (await db.query(
+        `UPDATE requests SET site_id=$2,start_at=$3,end_at=$4,deadline_at=$5,
+           headcount=$6,message=$7,status=$8,
+           sent_message=CASE WHEN status='open' THEN coalesce(sent_message,message) ELSE sent_message END
+         WHERE id=$1 RETURNING *`,
+        [before.id, siteId, range.start_at, range.end_at, deadline, headcount, message, status],
+      )).rows[0];
+      if (shiftChanged) {
+        updated.excluded = await reviseDraftCandidates(db, clock, req.user, before, updated);
+        await db.query("UPDATE requests SET excluded=$2 WHERE id=$1",
+          [before.id, JSON.stringify(updated.excluded)]);
+      }
+      if (draft && message !== before.message)
+        await db.query("DELETE FROM request_voice_bindings WHERE request_id=$1 AND purpose='message'", [before.id]);
+      if (status === "filled") await closeQueued(db, clock, req.user, updated);
+      if (status === "open" && +deadline !== +before.deadline_at)
+        await enqueueJob(db, clock, "request-deadline", { request_id: before.id },
+          `deadline:${before.id}:${deadline.toISOString()}`, deadline);
+
+      await audit(db, clock, req.user, "request.updated", "request", before.id,
+        before, updated, siteId);
+    });
+    res.json(await detail(pool, req.user, req.params.id, redialContext(req)));
   });
   app.post("/api/requests/:id/candidates", async (req, res) => {
     await mutate(pool, clock, async (db) => {
@@ -827,7 +945,7 @@ export function registerDispatch(
       } else if (validateChannels) await validateChannels(db, before, candidates);
       const row = (
         await db.query(
-          "UPDATE requests SET status='open' WHERE id=$1 RETURNING *",
+          "UPDATE requests SET status='open',sent_message=message WHERE id=$1 RETURNING *",
           [before.id],
         )
       ).rows[0];

@@ -413,18 +413,21 @@ export async function prepareAttempt(
   const site = (
     await db.query("SELECT * FROM sites WHERE id=$1", [attempt.site_id])
   ).rows[0];
+  const invitation = attempt.purpose === "offer" && request?.sent_message != null
+    ? { ...request, message: request.sent_message }
+    : request;
   const payload = buildPayload(
     attempt,
     { ...staff, language: attempt.language_snapshot ?? staff.language },
     site,
-    request ?? attempt.payload,
+    invitation ?? attempt.payload,
     voiceTexts,
   );
   if (attempt.payload?.voice_mode === "elevenlabs-pilot") {
     delete payload.voice;
     payload.voice_mode = attempt.payload.voice_mode;
   } else if (attempt.channel === "voice" && voiceClips && voiceClips.mode !== "say")
-    payload.voice = await recordedVoice(db, { voiceClips, voice: { publicBaseUrl } }, attempt.purpose, attempt.language_snapshot ?? staff.language, site, request, settingsVersion);
+    payload.voice = await recordedVoice(db, { voiceClips, voice: { publicBaseUrl } }, attempt.purpose, attempt.language_snapshot ?? staff.language, site, invitation, settingsVersion);
   return { attempt, payload };
 }
 export async function sendMock(pool, clock, id, voiceTexts, voiceOptions = {}) {

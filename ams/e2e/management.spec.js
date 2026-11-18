@@ -217,3 +217,23 @@ test("AC-S-01-09 deactivation visibly lists the retained future assignment", asy
   await expect(page.getByRole("status")).toContainText("未來班次仍然保留");
   await expect(page.getByRole("status")).toContainText("Warning Site");
 });
+
+test("The site code field explains the format and validates it in plain language", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("電郵").fill("ui-admin@test.local");
+  await page.getByLabel("密碼", { exact: true }).fill("Local-test-password-123");
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await page.getByRole("button", { name: "工作地點", exact: true }).click();
+  await page.getByRole("button", { name: "新增地點", exact: true }).click();
+
+  const dialog = page.getByRole("dialog");
+  const code = dialog.getByLabel("代碼", { exact: true });
+  await expect(code).toHaveAccessibleDescription(/2 至 20 個英文字母.*TECH-01/);
+  await code.fill("TECH_01");
+  await dialog.getByLabel("地點名稱").fill("Tech Office");
+  await dialog.getByRole("button", { name: "儲存", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("例如 TECH-01");
+  await code.fill("tech-01");
+  await dialog.getByRole("button", { name: "儲存", exact: true }).click();
+  await expect(page.getByRole("row").filter({ hasText: "Tech Office" })).toContainText("TECH-01");
+});

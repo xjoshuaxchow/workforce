@@ -129,7 +129,7 @@ function LanguagePreview({ plan, request, reload }) {
     <h3>{languageName(plan.language)}</h3>
     {plan.missing.length>0 ? <div className="notice error"><strong>{t("clips.missingTitle")}</strong><ul>{plan.missing.map(item=><li key={item.key}>{clipLabel(item)} · {item.sample}</li>)}</ul></div> : <p className="notice">{t("clips.complete")}</p>}
     {plan.required.some(item=>item.key==='message') && <div className="clip-message">
-      <p>{t("clips.extra", { message: request.message })}</p>
+      <p>{t("clips.extra", { message: request.sent_message ?? request.message })}</p>
       {request.status === "draft" && <label className="field"><span>{t("clips.extraUpload", { language: languageName(plan.language) })}</span><input type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" disabled={busy} onChange={async e=>{
         const file=e.target.files[0];e.target.value="";if(!file)return;
         setBusy(true);setError(null);setNotice("");

@@ -380,17 +380,23 @@ function SiteForm({ site, onDone, onClose }) {
       setBusy(false);
     }
   };
+  const codeError = error?.errors?.some((issue) => issue.field === "code");
+  const displayError = codeError ? {
+    message: t("site.invalidCode"),
+    errors: error.errors.filter((issue) => issue.field !== "code"),
+  } : error;
   return (
     <Modal title={site ? t("site.editTitle") : t("site.createTitle")} onClose={onClose}>
-      <ErrorNotice error={error} />
+      <ErrorNotice error={displayError} />
       <form onSubmit={submit}>
         <div className="form-grid">
-          <Field
-            label={t("site.code")}
-            value={value.code}
-            onChange={change("code")}
-            required
-          />
+          <div>
+            <Field label={t("site.code")} required>
+              <input required value={value.code} onChange={(e) => change("code")(e.target.value)}
+                aria-label={t("site.code")} aria-describedby="site-code-hint" aria-invalid={codeError || undefined} />
+            </Field>
+            <small id="site-code-hint" className="muted">{t("site.codeHint")}</small>
+          </div>
           <Field
             label={t("site.name")}
             value={value.name}

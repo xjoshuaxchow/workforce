@@ -537,3 +537,105 @@ test("Local dispatch acceptance", async (t) => {
     },
   );
 });
+
+test("Editing a sent request preserves accepted replies, previous calls and original invitation content", async () => {
+  const r = await request({
+    start_at: "2026-11-07T01:00:00Z",
+    end_at: "2026-11-07T08:00:00Z",
+    deadline_at: "2026-11-02T08:00:00Z",
+    channels: ["voice"],
+    headcount: 2,
+    message: "Original instructions",
+  });
+  const path = `/api/requests/${r.id}`;
+  await send(r.id);
+  await reply(r.id, staff[0]);
+  const before = (await call("GET", path)).body;
+
+  assert.equal((await call("PATCH", path, { start_at: "2026-11-07T02:00:00Z" })).status, 409);
+  assert.equal((await call("PATCH", path, { site_id: randomUUID() })).status, 409);
+  const edited = await call("PATCH", path, {
+    message: "Updated work order notes",
+    headcount: 3,
+  });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal(edited.body.id, r.id);
+  assert.equal(edited.body.accepted, 1);
+  assert.equal(edited.body.headcount, 3);
+  assert.equal(edited.body.message, "Updated work order notes");
+  assert.deepEqual(edited.body.candidates, before.candidates);
+
+  await call("POST", "/api/mock/run-jobs", {});
+  const queuedOffer = (await call("GET", path)).body.candidates
+    .find(candidate => candidate.staff_id === staff[1]).attempts.find(a => a.purpose === "offer");
+  assert.equal(queuedOffer.payload.variables.message, "Original instructions");
+  let after = (await call("GET", path)).body;
+  assert.equal(after.candidates.find(candidate => candidate.staff_id === staff[0]).assignment.status, "confirmed");
+
+  const filled = await call("PATCH", path, { headcount: 1 });
+  assert.equal(filled.status, 200);
+  assert.equal(filled.body.status, "filled");
+  assert.equal(filled.body.accepted, 1);
+  after = (await call("GET", path)).body;
+  assert.equal(after.candidates.find(candidate => candidate.staff_id === staff[0]).final_response, "accept");
+  await call("POST", path + "/cancel", {});
+});
+
+test("Extending an open request moves expiry beyond the original deadline and cannot reopen it", async () => {
+  const originalClock = now;
+  const r = await request({
+    start_at: "2026-11-08T01:00:00Z",
+    end_at: "2026-11-08T08:00:00Z",
+    deadline_at: "2026-11-02T08:00:00Z",
+    channels: ["voice"],
+    headcount: 2,
+  });
+  const path = `/api/requests/${r.id}`;
+  await send(r.id);
+  try {
+    assert.equal((await call("PATCH", path, { deadline_at: "2026-11-08T01:01:00Z" })).status, 400);
+    assert.equal((await call("PATCH", path, { deadline_at: "2026-11-02T07:45:00Z" })).status, 400);
+    const extension = await call("PATCH", path, { deadline_at: "2026-11-02T09:00:00Z" });
+    assert.equal(extension.status, 200, JSON.stringify(extension.body));
+    assert.equal(extension.body.deadline_at, "2026-11-02T09:00:00.000Z");
+
+    now = new Date("2026-11-02T08:01:00Z");
+    assert.equal((await call("POST", "/api/mock/run-jobs", {})).status, 200);
+    assert.equal((await call("GET", path)).body.status, "open");
+    await reply(r.id, staff[0]);
+    assert.equal((await call("GET", path)).body.accepted, 1);
+
+    now = new Date("2026-11-02T09:00:00Z");
+    assert.equal((await call("PATCH", path, { deadline_at: "2026-11-02T10:00:00Z" })).status, 409);
+    await call("POST", "/api/mock/run-jobs", {});
+    const expired = (await call("GET", path)).body;
+    assert.equal(expired.status, "expired");
+    assert.equal(expired.accepted, 1);
+  } finally {
+    now = originalClock;
+    await call("POST", path + "/cancel", {});
+  }
+});
+
+test("Editing a draft changes the shift in place and keeps roster-linked shift times fixed", async () => {
+  const alternate = await call("POST", "/api/sites", { code: "EDIT-DRAFT", name: "Alternate draft site" });
+  await call("POST", `/api/sites/${alternate.body.id}/staff`, { staff_ids: [staff[0]] });
+  const draft = await request();
+  const path = `/api/requests/${draft.id}`;
+  const changed = await call("PATCH", path, {
+    site_id: alternate.body.id,
+    start_at: "2026-11-10T06:00:00Z",
+    end_at: "2026-11-10T08:00:00Z",
+    deadline_at: "2026-11-10T05:00:00Z",
+  });
+  assert.equal(changed.status, 200, JSON.stringify(changed.body));
+  assert.equal(changed.body.id, draft.id);
+  assert.equal(changed.body.site_id, alternate.body.id);
+  assert.deepEqual(changed.body.candidates.map(candidate => candidate.staff_id), [staff[0]]);
+  await call("POST", path + "/cancel", {});
+
+  const linkedShift = (await call("POST", "/api/shifts", { site_id: site, ...range })).body;
+  const linked = await request({ open_shift_ids: [linkedShift.id] });
+  assert.equal((await call("PATCH", `/api/requests/${linked.id}`, { end_at: "2026-11-05T08:00:00Z" })).status, 409);
+  await call("POST", `/api/requests/${linked.id}/cancel`, {});
+});

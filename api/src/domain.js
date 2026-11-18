@@ -67,7 +67,7 @@ export const validateSite = (input) =>
         .string()
         .trim()
         .toUpperCase()
-        .regex(/^[A-Z0-9-]{2,20}$/),
+        .regex(/^[A-Z0-9-]{2,20}$/, "Use 2 to 20 letters, digits or hyphens, for example TECH-01."),
       name: z.string().trim().min(1).max(100),
       address: z.string().default(""),
       voice_name_en: z.string().trim().max(100).default(""),

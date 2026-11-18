@@ -56,7 +56,8 @@ export function registerClipRoutes(app, { pool, settings }) {
   });
   app.get("/api/requests/:id/voice-preview", async (req, res) => {
     if (!z.uuid().safeParse(req.params.id).success) fail(404, "Request not found");
-    const request = await requestAccess(pool, req.user, req.params.id);
+    const stored = await requestAccess(pool, req.user, req.params.id);
+    const request = { ...stored, message: stored.sent_message ?? stored.message };
     const old = request.status === "draft" ? null : (await pool.query("SELECT settings_version_id FROM attempts WHERE request_id=$1 AND purpose='offer' ORDER BY ctime,id LIMIT 1", [request.id])).rows[0]?.settings_version_id;
     const profile = old ? await settings.get(old) : await settings.current();
     const mode = profile.config.voiceClips.mode;

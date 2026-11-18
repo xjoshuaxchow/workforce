@@ -103,7 +103,7 @@ after(async () => {
   await pool.end();
 });
 
-test("AC-R-01-10 open request PATCH returns 409 without changing the request or audit", async () => {
+test("AC-R-01-10 sent shift times stay fixed without changing the request or audit", async () => {
   const r = await makeRequest();
   await call("POST", `/api/requests/${r.id}/send`, {});
   const before = (await call("GET", `/api/requests/${r.id}`)).body;
@@ -115,6 +115,7 @@ test("AC-R-01-10 open request PATCH returns 409 without changing the request or 
     start_at: "2026-11-11T00:00:00Z",
   });
   assert.equal(changed.status, 409);
+  assert.equal(changed.body.reason, "request_edit_shift_locked");
   assert.deepEqual((await call("GET", `/api/requests/${r.id}`)).body, before);
   assert.equal(
     Number((await pool.query("SELECT count(*) FROM audit_log")).rows[0].count),
