@@ -367,16 +367,16 @@ test('Draft users edit and regenerate one purpose, keep other MP3 and restore th
   const original=items[0];assert.ok(Array.isArray(original.parts),'Draft cards need editable fixed wording');
   const parts=[...original.parts];parts[1]='，你好，請留意以下工作邀請。地點係';
   const changed=await editVoiceText(request.id,original,parts);assert.equal(changed.status,200,JSON.stringify(changed.body));
-  assert.match(changed.body.script,/請留意以下工作邀請/);assert.match(changed.body.script,/接受請按1/);assert.equal(calls,6);
+  assert.match(changed.body.script,/請留意以下工作邀請/);assert.match(changed.body.script,/接受請按1/);assert.equal(calls,items.length);
   let current=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0];
   assert.equal(current.missing.length,1);assert.equal(current.required[0].customized,true);
   for(const other of items.slice(1))assert.equal(current.required.find(x=>x.purpose===other.purpose).asset_id,other.asset_id);
-  assert.equal((await generate(request.id,current.required[0])).status,200);assert.equal(calls,7);
+  assert.equal((await generate(request.id,current.required[0])).status,200);assert.equal(calls,items.length+1);
   current=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0];
   assert.equal(current.missing.length,0);
   assert.equal((await editVoiceText(request.id,current.required[0],null)).status,200);
   const restored=(await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required[0];
-  assert.equal(restored.hash,original.hash);assert.equal(restored.asset_id,original.asset_id);assert.equal(restored.customized,false);assert.equal(calls,7);
+  assert.equal(restored.hash,original.hash);assert.equal(restored.asset_id,original.asset_id);assert.equal(restored.customized,false);assert.equal(calls,items.length+1);
 });
 test('Editing a shared ending changes only the edited work script while identical content remains reusable',async()=>{
   await setupRuntime({localClientFactory:installedLocal(async()=>encodedMp3)});await localMode();
@@ -480,11 +480,15 @@ test('Local full MP3 and DTMF use pinned Play after settings change; shared prom
   const xml=await(await signedVoice(attempt,staff,liveVoice.authToken)).text();
   assert.match(xml,/<Play>/);assert.doesNotMatch(xml,/<Say/);
   assert.match(await(await signedVoice(attempt,staff,liveVoice.authToken,'9')).text(),/<Play>/);
-  assert.match(await(await signedVoice(attempt,staff,liveVoice.authToken,'1')).text(),/<Play>/);
-  assert.equal(count,6);
+  const confirmed = await (await signedVoice(attempt,staff,liveVoice.authToken,'1')).text();
+  const confirmPath = (await api('GET',`/api/requests/${request.id}/voice-preview`)).body.languages[0].required.find(x=>x.purpose==='confirmation').playback_path;
+  assert.ok(confirmed.includes(confirmPath));
+  assert.match(confirmed, /<Play>.*<\/Play><Hangup/);
+  assert.doesNotMatch(confirmed, /<Say/);
+  assert.equal(count,preview.languages[0].required.length);
   await localMode();const fresh=await voiceRequest('yue');
   const required=(await api('GET',`/api/requests/${fresh.request.id}/voice-preview`)).body.languages[0].required;
-  assert.equal(required.filter(x=>x.state==='ready').length,5);
+  assert.equal(required.filter(x=>x.state==='ready').length,required.length-1);
 });
 test('Real local models persist playable English and Cantonese MP3 and dispatch pinned Play', {skip:process.env.LOCAL_TTS_SMOKE!=='1'}, async()=>{
   const {writeFile,mkdir}=await import('node:fs/promises');
@@ -553,7 +557,7 @@ test("Saved fixed copy is pinned before worker submission and inherited by confi
   assert.match(xml, /A版工作邀請/);
   assert.doesNotMatch(xml, /B版/);
   const ack = await signedVoice(offer, staff, liveVoice.authToken, "1");
-  assert.match(await ack.text(), /A版已收到 &lt;Hangup\s*\/&gt;。/);
+  assert.match(await ack.text(), /A版接單確認.*<Hangup/);
   await pool.query("UPDATE voice_calls SET state='finished',last_status='completed' WHERE attempt_id=$1", [offer.id]);
   await run();
   const follow = (await pool.query("SELECT * FROM attempts WHERE request_id=$1 AND purpose='confirmation'", [request.id])).rows[0];
@@ -1621,13 +1625,14 @@ test('Sending local MP3 work prepares missing audio automatically and reuses fix
  await setupRuntime({localClientFactory:installedLocal(async()=>{generated++;return encodedMp3;})});
  await localMode();const first=await voiceRequest('yue');
  const sent=await api('POST',`/api/requests/${first.request.id}/send`,{});
- assert.equal(sent.status,200,JSON.stringify(sent.body));assert.equal(sent.body.status,'open');assert.equal(generated,6);
+ assert.equal(sent.status,200,JSON.stringify(sent.body));assert.equal(sent.body.status,'open');assert.equal(generated,8);
  const second=await voiceRequest('yue');
  const next=await api('POST',`/api/requests/${second.request.id}/send`,{});
- assert.equal(next.status,200,JSON.stringify(next.body));assert.equal(generated,7,'Only the new invitation should require synthesis');
+ assert.equal(next.status,200,JSON.stringify(next.body));assert.equal(generated,9,'Only the new invitation should require synthesis');
  const plans=(await pool.query('SELECT plan FROM request_voice_plans ORDER BY request_id')).rows.map(r=>r.plan);
  assert.equal(plans.length,2);
  for(const kind of ['confirmation','cancellation'])assert.equal(plans[0].voices[kind].audio.main,plans[1].voices[kind].audio.main);
+ for(const kind of ['declined_reply','reply_failed'])assert.equal(plans[0].voices.offer.audio[kind],plans[1].voices.offer.audio[kind]);
 });
 test('Automatic preparation leaves a failed work in draft and creates no attempts',async()=>{
  await setupRuntime({localClientFactory:installedLocal(async()=>{throw Error('private engine details');})});
@@ -1644,8 +1649,8 @@ test('Concurrent identical invitation preparation converges to one shared asset'
  const second=(await api('POST','/api/requests',{site_id:first.request.site_id,mode:'direct',staff_id:first.staff.id,headcount:1,channels:['voice'],start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'})).body;
  const made=await Promise.all([first.request.id,second.id].map(id=>api('POST',`/api/requests/${id}/voice-prepare`,{})));
  for(const result of made)assert.equal(result.status,200,JSON.stringify(result.body));
- assert.equal(calls,6);
- assert.equal((await pool.query('SELECT count(*)::int AS n FROM voice_syntheses WHERE state=\'ready\'')).rows[0].n,6);
+ assert.equal(calls,8);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM voice_syntheses WHERE state=\'ready\'')).rows[0].n,8);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM voice_assets WHERE request_id IS NOT NULL')).rows[0].n,0);
 });
 test('Consent confirmation preserves its timestamp/source on unrelated edits and records the actor',async()=>{

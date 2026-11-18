@@ -1,6 +1,8 @@
 import { RequestVoiceSpeech } from "./ChannelSettingsPage.jsx";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
+import { hasMessage, t } from "./i18n.js";
+import { useI18n } from "./i18n.jsx";
 import {
   Field,
   Modal,
@@ -11,37 +13,14 @@ import {
   PagedSelect,
 } from "./ui.jsx";
 import { localToUtc, utcToLocal, dayAfter, today, HONG_KONG_TIMEZONE } from "./time.js";
-const labels = {
-  draft: "草稿",
-  open: "進行中",
-  filled: "已額滿",
-  expired: "已截止",
-  cancelled: "已取消",
-  pending: "待聯絡",
-  contacting: "聯絡中",
-  accepted: "已接受",
-  declined: "已拒絕",
-  too_late: "未能接單",
-  no_response: "未回覆",
-  failed: "失敗",
-  skipped: "已略過",
-  queued: "待發送",
-  sent: "已發出",
-  submitting: "正在提交",
-  submission_unknown: "提交結果待確認，勿重送",
-  delivered: "已送達",
-  read: "已讀",
-  answered: "已接聽",
-  no_answer: "未接聽",
-  busy: "忙線",
-  no_input: "無按鍵",
-  replied: "已回覆",
-  published: "已發布",
-  confirmed: "已確認",
-  completed: "已完成",
+const statusText = (code) => {
+  if (!code) return "—";
+  const key = `dispatch.status.${code}`;
+  return hasMessage(key) ? t(key) : code;
 };
 const fmt = (value, zone) => utcToLocal(value, zone).replace("T", " ");
 export function RequestForm({ sites, preset, onClose, onDone }) {
+  useI18n();
   const [value, setValue] = useState({
       site_id:
         preset?.site_id ?? sites.find((s) => s.status === "active")?.id ?? "",
@@ -76,8 +55,8 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
   const timeError =
     value.start && value.end && value.end <= value.start
       ? {
-          message: "結束時間必須晚於開始時間",
-          errors: [{ field: "end_at", message: "結束時間必須晚於開始時間" }],
+          message: t("dispatch.endAfterStart"),
+          errors: [{ field: "end_at", message: t("dispatch.endAfterStart") }],
         }
       : null;
   const submit = async (e) => {
@@ -112,12 +91,12 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     }
   };
   return (
-    <Modal title="新增調度" onClose={onClose}>
-      <p className="muted">所有日期時間均為香港時間</p>
+    <Modal title={t("dispatch.createTitle")} onClose={onClose}>
+      <p className="muted">{t("dispatch.timeHint")}</p>
       <ErrorNotice error={timeError ?? error ?? staffError} />
       <form onSubmit={submit}>
         <Field
-          label="工作地點"
+          label={t("dispatch.site")}
           value={value.site_id}
           onChange={(v) =>
             setValue((x) => ({
@@ -138,42 +117,42 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
         />
         <div className="form-grid">
           <Field
-            label="開始時間"
+            label={t("dispatch.start")}
             type="datetime-local"
             value={value.start}
             onChange={change("start")}
             required
           />
           <Field
-            label="結束時間"
+            label={t("dispatch.end")}
             type="datetime-local"
             value={value.end}
             onChange={change("end")}
             required
           />
           <Field
-            label="模式"
+            label={t("dispatch.mode")}
             value={value.mode}
             onChange={change("mode")}
             options={[
-              ["broadcast", "廣播至所有候選人"],
-              ["direct", "指定一位員工"],
+              ["broadcast", t("dispatch.broadcast")],
+              ["direct", t("dispatch.direct")],
             ]}
           />
           {value.mode === "direct" ? (
             <Field
               key={value.site_id}
-              label="指定員工"
+              label={t("dispatch.staff")}
               value={value.staff_id ?? ""}
               onChange={change("staff_id")}
               options={[
-                ["", "請選擇"],
+                ["", t("dispatch.choose")],
                 ...staff.items.map((s) => [s.id, s.name]),
               ]}
             />
           ) : (
             <Field
-              label="所需人數"
+              label={t("dispatch.headcount")}
               type="number"
               value={value.headcount}
               onChange={change("headcount")}
@@ -181,13 +160,13 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
             />
           )}
           <Field
-            label="回覆截止時間"
+            label={t("dispatch.deadline")}
             type="datetime-local"
             value={value.deadline}
             onChange={change("deadline")}
           />
         </div>
-        <p className="muted">不填截止時間時，會以開始時間為截止。</p>
+        <p className="muted">{t("dispatch.deadlineHint")}</p>
         <div className="actions">
           <label className="checkbox">
             <input
@@ -203,17 +182,17 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
               checked={value.voice}
               onChange={(e) => change("voice")(e.target.checked)}
             />
-            電話
+            {t("common.voice")}
           </label>
         </div>
         <Field
-          label="補充說明"
+          label={t("dispatch.message")}
           value={value.message}
           onChange={change("message")}
         />
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
           <button
             disabled={
@@ -223,7 +202,7 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
               (value.mode === "direct" && (staffLoading || !value.staff_id))
             }
           >
-            {busy ? "建立中…" : "建立草稿"}
+            {busy ? t("dispatch.creating") : t("dispatch.createDraft")}
           </button>
         </div>
       </form>
@@ -231,6 +210,7 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
   );
 }
 function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
+  useI18n();
   const [data, setData] = useState(null),
     [error, setError] = useState(null),
     [confirm, setConfirm] = useState(null),
@@ -281,7 +261,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
     return (
       <>
         <ErrorNotice error={error} />
-        <p className="muted">載入調度中…</p>
+        <p className="muted">{t("dispatch.loading")}</p>
       </>
     );
   const site = sites.find((s) => s.id === data.site_id),
@@ -289,24 +269,24 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
   return (
     <>
       <button className="text-button" onClick={onBack}>
-        ← 返回調度列表
+        {t("dispatch.backToList")}
       </button>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">DISPATCH DETAIL</p>
-          <h1>調度詳情</h1>
+          <p className="eyebrow">{t("dispatch.detailEyebrow")}</p>
+          <h1>{t("dispatch.detailTitle")}</h1>
           <p className="muted">
-            {site?.name} · {fmt(data.start_at, zone)} 至{" "}
+            {site?.name} · {fmt(data.start_at, zone)} {t("common.until")}{" "}
             {fmt(data.end_at, zone)}
           </p>
         </div>
         <div className="actions">
           {data.status === "draft" && (
-            <button disabled={busy || voicePreparing} onClick={() => action(`/requests/${id}/send`)}>{busy || voicePreparing ? "準備及發送中…" : "發送邀請"}</button>
+            <button disabled={busy || voicePreparing} onClick={() => action(`/requests/${id}/send`)}>{busy || voicePreparing ? t("dispatch.preparingSend") : t("dispatch.send")}</button>
           )}
           {["draft", "open", "filled"].includes(data.status) && (
             <button className="quiet" onClick={() => setConfirm("cancel")}>
-              取消調度
+              {t("dispatch.cancelRequest")}
             </button>
           )}
         </div>
@@ -314,35 +294,35 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
       <ErrorNotice error={error} />
       <div className="dispatch-summary">
         <section className="panel metric">
-          <p>已確認人數</p>
+          <p>{t("dispatch.acceptedCount")}</p>
           <h2>
             {data.accepted} / {data.headcount}
           </h2>
         </section>
         <section className="panel metric">
-          <p>狀態</p>
-          <strong className="large-status">{labels[data.status]}</strong>
+          <p>{t("common.status")}</p>
+          <strong className="large-status">{statusText(data.status)}</strong>
         </section>
         <section className="panel metric">
-          <p>回覆截止 · {zone}</p>
+          <p>{t("dispatch.deadlineZone", { zone })}</p>
           <strong>{fmt(data.deadline_at, zone)}</strong>
         </section>
       </div>
       <section className="panel">
         <div className="section-title">
-          <h2>候選人</h2>
-          <span className="muted">每 3 秒更新</span>
+          <h2>{t("dispatch.candidates")}</h2>
+          <span className="muted">{t("dispatch.refreshHint")}</span>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>員工</th>
-                <th>接單結果</th>
+                <th>{t("common.staff")}</th>
+                <th>{t("dispatch.result")}</th>
                 <th>WhatsApp</th>
-                <th>電話</th>
-                <th>回覆時間</th>
-                <th>人工處理</th>
+                <th>{t("common.voice")}</th>
+                <th>{t("dispatch.replyTime")}</th>
+                <th>{t("dispatch.manual")}</th>
               </tr>
             </thead>
             <tbody>
@@ -356,10 +336,10 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                     <span
                       className={`badge ${c.status === "accepted" ? "success" : ""}`}
                     >
-                      {labels[c.status]}
+                      {statusText(c.status)}
                     </span>
                     {c.assignment?.status === "cancelled" && (
-                      <small>分配已取消</small>
+                      <small>{t("dispatch.assignmentCancelled")}</small>
                     )}
                     {c.reason && <small>{c.reason}</small>}
                   </td>
@@ -369,18 +349,18 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                     );
                     return (
                       <td key={channel}>
-                        {labels[attempt?.status] ?? "—"}
+                        {statusText(attempt?.status)}
                         {attempt?.response_at && (
                           <small>
                             <time
                               aria-label={
                                 channel === "whatsapp"
-                                  ? "WhatsApp 回覆時間"
-                                  : "電話回覆時間"
+                                  ? t("dispatch.whatsappReply")
+                                  : t("dispatch.voiceReply")
                               }
                               dateTime={attempt.response_at}
                             >
-                              回覆於 {fmt(attempt.response_at, zone)}
+                              {t("dispatch.repliedAt", { time: fmt(attempt.response_at, zone) })}
                             </time>
                           </small>
                         )}
@@ -401,7 +381,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                           )
                         }
                       >
-                        移除候選人
+                        {t("dispatch.removeCandidate")}
                       </button>
                     )}
                     {c.status === "contacting" && data.status === "open" && (
@@ -412,7 +392,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                           setConfirm({ candidate: c, kind: "confirm" })
                         }
                       >
-                        確認接單
+                        {t("dispatch.confirmAccept")}
                       </button>
                     )}
                     {c.assignment?.status === "confirmed" &&
@@ -423,7 +403,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                             setConfirm({ candidate: c, kind: "remove" })
                           }
                         >
-                          移除名額
+                          {t("dispatch.removeSlot")}
                         </button>
                       )}
                   </td>
@@ -432,18 +412,18 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
             </tbody>
           </table>
           {!data.candidates.length && (
-            <div className="empty">沒有合資格候選人</div>
+            <div className="empty">{t("dispatch.noCandidates")}</div>
           )}
         </div>
       </section>
       {data.status === "draft" && (
         <section className="panel candidate-add">
           <PagedSelect
-            label="加入候選員工"
+            label={t("dispatch.addCandidateLabel")}
             value={toAdd}
             onChange={setToAdd}
             options={[
-              ["", "選擇 Site 關聯員工"],
+              ["", t("dispatch.chooseLinked")],
               ...linked
                 .filter(
                   (s) => !data.candidates.some((c) => c.staff_id === s.id),
@@ -457,14 +437,14 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
               action(`/requests/${id}/candidates`, { staff_id: toAdd })
             }
           >
-            加入候選人
+            {t("dispatch.addCandidate")}
           </button>
         </section>
       )}
       <RequestVoiceSpeech request={data} onPreparing={setVoicePreparing} />
       {data.excluded?.length > 0 && (
         <section className="panel exclusions">
-          <h2>未納入的員工</h2>
+          <h2>{t("dispatch.excluded")}</h2>
           {data.excluded.map((x) => (
             <p key={x.staff_id}>
               {x.name} · {x.reason}
@@ -474,8 +454,8 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
       )}
       {import.meta.env.DEV && messagingMode === "mock" && (
         <details className="panel dev-tools">
-          <summary>本機測試工具</summary>
-          <p className="muted">此區只模擬回覆，不會發出真實電話或 WhatsApp。</p>
+          <summary>{t("dispatch.devTools")}</summary>
+          <p className="muted">{t("dispatch.devHint")}</p>
           {data.candidates.map((c) => (
             <div className="mock-row" key={c.id}>
               <strong>{c.name}</strong>
@@ -483,7 +463,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                 .filter((a) => a.purpose === "offer")
                 .map((a) => (
                   <div key={a.id} className="actions">
-                    <span>{a.channel === "voice" ? "電話" : "WhatsApp"}</span>
+                    <span>{a.channel === "voice" ? t("common.voice") : t("common.whatsapp")}</span>
                     <button
                       className="quiet"
                       onClick={() =>
@@ -493,7 +473,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                         })
                       }
                     >
-                      模擬接受
+                      {t("dispatch.mockAccept")}
                     </button>
                     <button
                       className="quiet"
@@ -504,7 +484,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                         })
                       }
                     >
-                      模擬拒絕
+                      {t("dispatch.mockDecline")}
                     </button>
                     {a.channel === "voice" && (
                       <button
@@ -515,7 +495,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                           })
                         }
                       >
-                        模擬未接
+                        {t("dispatch.mockNoAnswer")}
                       </button>
                     )}
                   </div>
@@ -528,25 +508,28 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
         <Modal
           title={
             confirm === "send"
-              ? "確認發送"
+              ? t("dispatch.confirmSendTitle")
               : confirm === "cancel"
-                ? "取消調度"
-                : "確認人工處理"
+                ? t("dispatch.cancelRequest")
+                : t("dispatch.confirmManual")
           }
           onClose={() => setConfirm(null)}
         >
           <p>
             {confirm === "send"
-              ? `將向 ${data.candidates.length} 位候選人發出 ${data.channels.map((c) => (c === "voice" ? "電話" : "WhatsApp")).join("／")} 邀請。`
+              ? t("dispatch.confirmSendBody", {
+                  count: data.candidates.length,
+                  channels: data.channels.map((c) => (c === "voice" ? t("common.voice") : t("common.whatsapp"))).join(t("dispatch.channelJoin")),
+                })
               : confirm === "cancel"
-                ? "已接單的分配也會取消，並發出取消通知。"
+                ? t("dispatch.cancelBody")
                 : confirm.kind === "remove"
-                  ? `移除 ${confirm.candidate.name} 的名額，並發出取消通知。`
-                  : `為 ${confirm.candidate.name} 正式接單，仍會檢查剩餘名額及班次衝突。`}
+                  ? t("dispatch.removeBody", { name: confirm.candidate.name })
+                  : t("dispatch.acceptBody", { name: confirm.candidate.name })}
           </p>
           <div className="form-actions">
             <button className="quiet" onClick={() => setConfirm(null)}>
-              返回
+              {t("common.back")}
             </button>
             <button
               disabled={busy}
@@ -556,7 +539,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                 )
               }
             >
-              {confirm === "send" ? "確認發送" : "確認"}
+              {confirm === "send" ? t("dispatch.confirmSend") : t("common.confirm")}
             </button>
           </div>
         </Modal>
@@ -565,6 +548,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
   );
 }
 export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
+  useI18n();
   const [page, setPage] = useState(1),
     [status, setStatus] = useState(""),
     [version, setVersion] = useState(0),
@@ -580,7 +564,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
     setSelected(r.id);
     setVersion((x) => x + 1);
     onPresetUsed?.();
-    notify("調度草稿已建立");
+    notify(t("dispatch.draftCreated"));
   };
   if (selected)
     return (
@@ -599,32 +583,32 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">DISPATCH</p>
-          <h1>調度工作台</h1>
-          <p className="muted">發出工作邀請，追蹤各渠道結果與已確認名額。</p>
+          <p className="eyebrow">{t("dispatch.eyebrow")}</p>
+          <h1>{t("dispatch.title")}</h1>
+          <p className="muted">{t("dispatch.intro")}</p>
         </div>
         <button
           disabled={!sites.items.some((s) => s.status === "active")}
           onClick={() => setForm(true)}
         >
-          新增調度
+          {t("dispatch.add")}
         </button>
       </div>
       <ErrorNotice error={error ?? siteError} />
       <section className="panel">
         <div className="toolbar">
           <select
-            aria-label="調度狀態"
+            aria-label={t("dispatch.statusFilter")}
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);
               setPage(1);
             }}
           >
-            <option value="">所有狀態</option>
+            <option value="">{t("dispatch.allStatuses")}</option>
             {["draft", "open", "filled", "expired", "cancelled"].map((k) => (
               <option key={k} value={k}>
-                {labels[k]}
+                {statusText(k)}
               </option>
             ))}
           </select>
@@ -633,12 +617,12 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
           <table>
             <thead>
               <tr>
-                <th>工作地點</th>
-                <th>時段</th>
-                <th>已確認／所需</th>
-                <th>狀態</th>
-                <th>建立者</th>
-                <th>操作</th>
+                <th>{t("dispatch.site")}</th>
+                <th>{t("dispatch.columnTime")}</th>
+                <th>{t("dispatch.columnHeadcount")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("dispatch.columnCreator")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -653,7 +637,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
                       HONG_KONG_TIMEZONE,
                     )}
                     <small>
-                      至{" "}
+                      {t("common.until")}{" "}
                       {fmt(
                         r.end_at,
                         HONG_KONG_TIMEZONE,
@@ -667,7 +651,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
                     <span
                       className={`badge ${r.status === "filled" ? "success" : ""}`}
                     >
-                      {labels[r.status]}
+                      {statusText(r.status)}
                     </span>
                   </td>
                   <td>{r.created_by_name}</td>
@@ -676,7 +660,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
                       className="text-button"
                       onClick={() => setSelected(r.id)}
                     >
-                      查看詳情
+                      {t("dispatch.view")}
                     </button>
                   </td>
                 </tr>
@@ -685,7 +669,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
           </table>
           {!data.items.length && (
             <div className="empty">
-              {loading ? "載入中…" : "尚未建立調度，先新增工作地點及關聯員工。"}
+              {loading ? t("common.loading") : t("dispatch.empty")}
             </div>
           )}
         </div>
@@ -706,6 +690,7 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
   );
 }
 function ShiftForm({ site, staff, shift, onDone, onClose }) {
+  useI18n();
   const zone = HONG_KONG_TIMEZONE,
     [value, setValue] = useState({
       staff_id: shift?.staff_id ?? "",
@@ -730,7 +715,7 @@ function ShiftForm({ site, staff, shift, onDone, onClose }) {
           acknowledge_warnings: acknowledge,
         },
       });
-      onDone("班次已儲存");
+      onDone(t("roster.saved"));
     } catch (e) {
       setError(e);
     } finally {
@@ -738,7 +723,7 @@ function ShiftForm({ site, staff, shift, onDone, onClose }) {
     }
   };
   return (
-    <Modal title={shift ? "編輯班次" : "新增班次"} onClose={onClose}>
+    <Modal title={shift ? t("roster.editTitle") : t("roster.createTitle")} onClose={onClose}>
       <p className="muted">
         {site.name} · {zone}
       </p>
@@ -751,23 +736,23 @@ function ShiftForm({ site, staff, shift, onDone, onClose }) {
       >
         {shift?.request_id && (
           <p className="notice success">
-            此班次由調度管理；換人、改時段或取消，請到原調度處理。
+            {t("roster.managedNotice")}
           </p>
         )}
         <Field
           disabled={Boolean(shift?.request_id)}
-          label="指派員工"
+          label={t("roster.assignee")}
           value={value.staff_id}
           onChange={change("staff_id")}
           options={[
-            ["", "未指派 Open shift"],
+            ["", t("roster.unassigned")],
             ...staff.map((s) => [s.id, s.name]),
           ]}
         />
         <div className="form-grid">
           <Field
             disabled={Boolean(shift?.request_id)}
-            label="開始時間"
+            label={t("dispatch.start")}
             type="datetime-local"
             required
             value={value.start}
@@ -775,19 +760,19 @@ function ShiftForm({ site, staff, shift, onDone, onClose }) {
           />
           <Field
             disabled={Boolean(shift?.request_id)}
-            label="結束時間"
+            label={t("dispatch.end")}
             type="datetime-local"
             required
             value={value.end}
             onChange={change("end")}
           />
         </div>
-        <Field label="備註" value={value.notes} onChange={change("notes")} />
+        <Field label={t("roster.notes")} value={value.notes} onChange={change("notes")} />
         {error?.warnings && (
           <div className="notice error">
             {error.warnings.join("、")}
             <button type="button" className="quiet" onClick={() => save(true)}>
-              確認警告並指派
+              {t("roster.confirmWarning")}
             </button>
           </div>
         )}
@@ -799,31 +784,32 @@ function ShiftForm({ site, staff, shift, onDone, onClose }) {
                 type="button"
                 className="quiet"
                 onClick={async () => {
-                  if (!window.confirm("取消這個班次？")) return;
+                  if (!window.confirm(t("roster.cancelConfirm"))) return;
                   try {
                     await api(`/shifts/${shift.id}/cancel`, {
                       method: "POST",
                       body: {},
                     });
-                    onDone("班次已取消");
+                    onDone(t("roster.cancelled"));
                   } catch (e) {
                     setError(e);
                   }
                 }}
               >
-                取消班次
+                {t("roster.cancelShift")}
               </button>
             )}
           <button type="button" className="quiet" onClick={onClose}>
-            返回
+            {t("common.back")}
           </button>
-          <button disabled={busy}>儲存</button>
+          <button disabled={busy}>{t("common.save")}</button>
         </div>
       </form>
     </Modal>
   );
 }
 export function Roster({ notify, onFindStaff }) {
+  useI18n();
   const { data: sites, error: siteError } = useAllList("/sites"),
     { data: people, error: peopleError } = useAllList("/staff");
   const [siteId, setSiteId] = useState(""),
@@ -893,7 +879,7 @@ export function Roster({ notify, onFindStaff }) {
           s.start_at !== shifts[0].start_at || s.end_at !== shifts[0].end_at,
       )
     ) {
-      setError(Error("請選擇相同時段的空缺班次"));
+      setError(Error(t("roster.sameSlot")));
       return;
     }
     onFindStaff({
@@ -915,10 +901,10 @@ export function Roster({ notify, onFindStaff }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">ROSTER</p>
-          <h1>班表</h1>
+          <p className="eyebrow">{t("roster.eyebrow")}</p>
+          <h1>{t("roster.title")}</h1>
           <p className="muted">
-            以工作地點當地時間查看班次與缺額。{site && ` ${zone}`}
+            {t("roster.intro")}{site && ` ${zone}`}
           </p>
         </div>
         <div className="actions">
@@ -927,7 +913,7 @@ export function Roster({ notify, onFindStaff }) {
             disabled={!visible || !selected.size}
             onClick={find}
           >
-            為 {selected.size} 個空缺尋找員工
+            {t("roster.findStaff", { count: selected.size })}
           </button>
           <button
             className="quiet"
@@ -937,13 +923,13 @@ export function Roster({ notify, onFindStaff }) {
               setPublishResult(null);
             }}
           >
-            發布本週
+            {t("roster.publishWeek")}
           </button>
           <button
             disabled={!site || site.status !== "active"}
             onClick={() => setForm({})}
           >
-            新增班次
+            {t("roster.addShift")}
           </button>
         </div>
       </div>
@@ -951,7 +937,7 @@ export function Roster({ notify, onFindStaff }) {
       <section className="panel">
         <div className="toolbar">
           <PagedSelect
-            label="班表地點"
+            label={t("roster.siteLabel")}
             value={siteId}
             onChange={(value) => {
               if (value === siteId) return;
@@ -963,23 +949,23 @@ export function Roster({ notify, onFindStaff }) {
             options={sites.items.map((s) => [s.id, s.name])}
           />
           <input
-            aria-label="班表起始日期"
+            aria-label={t("roster.weekStart")}
             type="date"
             value={week}
             onChange={(e) => e.target.value && setWeek(e.target.value)}
           />
           <button className="quiet" onClick={() => setWeek(dayAfter(week, -7))}>
-            上一週
+            {t("roster.prevWeek")}
           </button>
           <button className="quiet" onClick={() => setWeek(dayAfter(week, 7))}>
-            下一週
+            {t("roster.nextWeek")}
           </button>
         </div>
         <div className="table-wrap">
           <table className="roster-grid">
             <thead>
               <tr>
-                <th>員工</th>
+                <th>{t("common.staff")}</th>
                 {days.map((day) => (
                   <th
                     key={day}
@@ -989,7 +975,7 @@ export function Roster({ notify, onFindStaff }) {
                   >
                     {day.slice(5)}
                     {visible?.days?.[day]?.understaffed && (
-                      <small>有缺額</small>
+                      <small>{t("roster.understaffed")}</small>
                     )}
                   </th>
                 ))}
@@ -998,7 +984,7 @@ export function Roster({ notify, onFindStaff }) {
             <tbody>
               {groups.map((group) => (
                 <tr key={group.staff_id ?? "open"}>
-                  <th>{group.staff_name ?? "空缺班次"}</th>
+                  <th>{group.staff_name ?? t("roster.openShifts")}</th>
                   {days.map((day) => (
                     <td key={day}>
                       {group.shifts
@@ -1012,7 +998,7 @@ export function Roster({ notify, onFindStaff }) {
                           >
                             {!group.staff_id && (
                               <input
-                                aria-label={`選擇 ${day} 空缺`}
+                                aria-label={t("roster.selectOpen", { day })}
                                 type="checkbox"
                                 checked={selected.has(shift.id)}
                                 onChange={(e) =>
@@ -1034,10 +1020,10 @@ export function Roster({ notify, onFindStaff }) {
                               {utcToLocal(shift.end_at, zone).slice(11)}
                             </button>
                             <small>
-                              {labels[shift.status]}
+                              {statusText(shift.status)}
                               {utcToLocal(shift.end_at, zone).slice(0, 10) !==
                               day
-                                ? " · 翌日"
+                                ? t("roster.nextDay")
                                 : ""}
                             </small>
                           </div>
@@ -1048,20 +1034,22 @@ export function Roster({ notify, onFindStaff }) {
               ))}
             </tbody>
           </table>
-          {!site && <div className="empty">先建立工作地點，即可開始排班。</div>}
+          {!site && <div className="empty">{t("roster.empty")}</div>}
         </div>
       </section>
       {publishing && (
-        <Modal title="發布本週班表" onClose={() => setPublishing(false)}>
+        <Modal title={t("roster.publishTitle")} onClose={() => setPublishing(false)}>
           {publishResult ? (
             <>
               <p>
-                已發布 {publishResult.published} 個班次，已安排通知{" "}
-                {publishResult.notified} 位員工。
+                {t("roster.published", {
+                  published: publishResult.published,
+                  notified: publishResult.notified,
+                })}
               </p>
               {publishResult.not_notified.length > 0 && (
                 <p className="notice error">
-                  未能透過 WhatsApp 通知：
+                  {t("roster.notNotified")}
                   {publishResult.not_notified
                     .map(
                       (id) => people.items.find((p) => p.id === id)?.name ?? id,
@@ -1070,20 +1058,19 @@ export function Roster({ notify, onFindStaff }) {
                 </p>
               )}
               <div className="form-actions">
-                <button onClick={() => setPublishing(false)}>完成</button>
+                <button onClick={() => setPublishing(false)}>{t("roster.done")}</button>
               </div>
             </>
           ) : (
             <>
               <p>
-                發布本週草稿班次，並為每位符合 WhatsApp
-                聯絡條件的員工安排一則通知。
+                {t("roster.publishBody")}
               </p>
               <div className="form-actions">
                 <button className="quiet" onClick={() => setPublishing(false)}>
-                  返回
+                  {t("common.back")}
                 </button>
-                <button onClick={publish}>確認發布</button>
+                <button onClick={publish}>{t("roster.confirmPublish")}</button>
               </div>
             </>
           )}

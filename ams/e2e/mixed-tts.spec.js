@@ -13,7 +13,7 @@ test('Site English spoken fields and independent English audition preserve emplo
   const staff=await(await page.request.post('/api/staff',{data:{name:'Cantonese Staff',mobile:'+6591234567',language:'yue'}})).json();
   await page.request.post(`/api/sites/${site.id}/staff`,{data:{staff_ids:[staff.id]}});
   const request=await(await page.request.post('/api/requests',{data:{site_id:site.id,mode:'direct',staff_id:staff.id,headcount:1,channels:['voice'],start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'}})).json();
-  await page.reload();await page.getByRole('button',{name:'調度工作台',exact:true}).click();await page.getByRole('button',{name:'查看詳情',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'派更工作台',exact:true}).click();await page.getByRole('button',{name:'查看詳情',exact:true}).click();
   await page.getByLabel('試聽語言',{exact:true}).selectOption('en');
   await expect(page.getByText('僅供英語試聽，電話仍按員工設定選擇語言。',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'生成缺少 MP3（英語）',exact:true}).click();

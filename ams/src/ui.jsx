@@ -1,7 +1,9 @@
-import { HONG_KONG_TIMEZONE } from "./time.js";
+import { formatDate, t } from "./i18n.js";
+import { useI18n } from "./i18n.jsx";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
 export function ErrorNotice({ error }) {
+  useI18n();
   return error ? (
     <div role="alert" className="notice error">
       <strong>{error.message}</strong>
@@ -9,7 +11,7 @@ export function ErrorNotice({ error }) {
         <ul>
           {error.errors.map((x, i) => (
             <li key={i}>
-              {x.row ? `第 ${x.row} 行 · ` : ""}
+              {x.row ? t("common.rowPrefix", { row: x.row }) : ""}
               {x.field}：{x.message}
             </li>
           ))}
@@ -23,21 +25,14 @@ export function mutationNotice(message, warnings = []) {
   if (!shifts.length) return message;
   return (
     <>
-      <strong>{message}。請注意，以下未來班次仍然保留：</strong>
+      <strong>{t("common.retainedShifts", { message })}</strong>
       <ul>
         {shifts.map((s) => (
           <li key={s.id}>
-            {s.site_name ?? "工作地點"} ·{" "}
-            {new Intl.DateTimeFormat("zh-HK", {
-              timeZone: HONG_KONG_TIMEZONE,
-              dateStyle: "medium",
-              timeStyle: "short",
-            }).format(new Date(s.start_at))}{" "}
-            至{" "}
-            {new Intl.DateTimeFormat("zh-HK", {
-              timeZone: HONG_KONG_TIMEZONE,
-              timeStyle: "short",
-            }).format(new Date(s.end_at))}
+            {s.site_name ?? t("common.siteFallback")} ·{" "}
+            {formatDate(s.start_at, { dateStyle: "medium", timeStyle: "short" })}{" "}
+            {t("common.until")}{" "}
+            {formatDate(s.end_at, { timeStyle: "short" })}
           </li>
         ))}
       </ul>
@@ -112,6 +107,7 @@ export function PagedSelect({
   disabled = false,
   options,
 }) {
+  useI18n();
   const [search, setSearch] = useState(""),
     [page, setPage] = useState(1);
   const filtered = options.filter(([, text]) =>
@@ -136,8 +132,8 @@ export function PagedSelect({
       </span>
       {searchable && (
         <input
-          aria-label={`搜尋${label}`}
-          placeholder="搜尋名稱或號碼"
+          aria-label={t("common.searchLabel", { label })}
+          placeholder={t("common.searchNames")}
           value={search}
           disabled={disabled}
           onChange={(e) => {
@@ -165,23 +161,23 @@ export function PagedSelect({
           <button
             type="button"
             className="quiet"
-            aria-label={`${label}上一頁`}
+            aria-label={t("common.pagePrevious", { label })}
             disabled={disabled || current === 1}
             onClick={() => setPage(current - 1)}
           >
-            上一頁
+            {t("common.previous")}
           </button>
           <span className="muted">
-            {filtered.length} 筆 · {current} / {pages}
+            {t("common.pageSummary", { count: filtered.length, current, pages })}
           </span>
           <button
             type="button"
             className="quiet"
-            aria-label={`${label}下一頁`}
+            aria-label={t("common.pageNext", { label })}
             disabled={disabled || current === pages}
             onClick={() => setPage(current + 1)}
           >
-            下一頁
+            {t("common.next")}
           </button>
         </div>
       )}
@@ -190,6 +186,7 @@ export function PagedSelect({
 }
 
 export function PagedItems({ label, items, children }) {
+  useI18n();
   const [search, setSearch] = useState(""),
     [page, setPage] = useState(1);
   const filtered = items.filter((s) =>
@@ -202,8 +199,8 @@ export function PagedItems({ label, items, children }) {
   return (
     <>
       <input
-        aria-label={`搜尋${label}`}
-        placeholder="搜尋姓名或手機號碼"
+        aria-label={t("common.searchLabel", { label })}
+        placeholder={t("common.searchPeople")}
         value={search}
         onChange={(e) => {
           setSearch(e.target.value);
@@ -217,29 +214,30 @@ export function PagedItems({ label, items, children }) {
         <button
           type="button"
           className="quiet"
-          aria-label={`${label}上一頁`}
+          aria-label={t("common.pagePrevious", { label })}
           disabled={current === 1}
           onClick={() => setPage(current - 1)}
         >
-          上一頁
+          {t("common.previous")}
         </button>
         <span className="muted">
-          {filtered.length} 筆 · {current} / {pages}
+          {t("common.pageSummary", { count: filtered.length, current, pages })}
         </span>
         <button
           type="button"
           className="quiet"
-          aria-label={`${label}下一頁`}
+          aria-label={t("common.pageNext", { label })}
           disabled={current === pages}
           onClick={() => setPage(current + 1)}
         >
-          下一頁
+          {t("common.next")}
         </button>
       </div>
     </>
   );
 }
 export function Modal({ title, onClose, children }) {
+  useI18n();
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") onClose();
@@ -257,7 +255,7 @@ export function Modal({ title, onClose, children }) {
       >
         <header>
           <h2>{title}</h2>
-          <button className="quiet" onClick={onClose} aria-label="關閉">
+          <button className="quiet" onClick={onClose} aria-label={t("common.close")}>
             ×
           </button>
         </header>
@@ -267,23 +265,24 @@ export function Modal({ title, onClose, children }) {
   );
 }
 export function Pager({ data, page, onChange }) {
+  useI18n();
   return (
     <footer className="pager">
-      <span>共 {data.total ?? 0} 筆</span>
+      <span>{t("common.pagerTotal", { count: data.total ?? 0 })}</span>
       <button
         className="quiet"
         disabled={page === 1}
         onClick={() => onChange(page - 1)}
       >
-        上一頁
+        {t("common.previous")}
       </button>
-      <span>第 {page} 頁</span>
+      <span>{t("common.pagerPage", { page })}</span>
       <button
         className="quiet"
         disabled={page * 50 >= (data.total ?? 0)}
         onClick={() => onChange(page + 1)}
       >
-        下一頁
+        {t("common.next")}
       </button>
     </footer>
   );

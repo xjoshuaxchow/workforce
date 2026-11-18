@@ -21,9 +21,24 @@ export const voiceTextLayout = {
   no_input: { label: "無按鍵回覆", tokens: [] },
   unavailable: { label: "額滿／無法接單", tokens: [] },
 };
+export const voiceReplyPrompts = {
+  declined_reply: {
+    label: "已記錄拒絕",
+    en: "Your decline has been recorded. Thank you.",
+    yue: "已經記錄你拒絕呢個更次。多謝。",
+    zh: "已记录您拒绝这个班次。谢谢。",
+  },
+  reply_failed: {
+    label: "未能儲存回覆",
+    en: "We could not confirm your response. Please contact your supervisor.",
+    yue: "未能確認你嘅回覆。請聯絡你嘅主管。",
+    zh: "未能确认您的回复。请联系您的主管。",
+  },
+};
+export const voicePromptKinds = ["ack", "no_input", "unavailable", "confirmation", ...Object.keys(voiceReplyPrompts)];
 const defaults = {
   en: {
-    offer: ["Hello ", ". This is a shift offer at ", ", from ", " to ", ". ", " Press ", " to accept. Press ", " to decline. Press ", " to repeat."],
+    offer: ["Hello ", ". Press nine at any time to hear the shift details again. This is a shift offer at ", ", from ", " to ", ". ", " Press ", " to accept. Press ", " to decline. Press ", " to repeat."],
     confirmation: ["Your shift has been confirmed. Please check your work schedule or contact your supervisor for details. Thank you."],
     cancellation: ["Your work arrangement has been cancelled. Please check WhatsApp or contact your supervisor for details. Thank you."],
     ack: ["Your response has been received. Thank you."],
@@ -31,7 +46,7 @@ const defaults = {
     unavailable: ["This shift is no longer available. Thank you."],
   },
   yue: {
-    offer: ["", "，你好。有一個更次邀請，地點係", "，由", "至", "。", " 接受請按", "，拒絕請按", "，重聽請按", "。"],
+    offer: ["", "，你好。想重聽工作內容，隨時撳九字。有一個更次邀請，地點係", "，由", "至", "。", " 接受請按", "，拒絕請按", "，重聽請按", "。"],
     confirmation: ["你嘅更次已經確認。請查看工作安排，或者聯絡主管了解詳情。多謝。"],
     cancellation: ["你嘅工作安排已經取消。請查看 WhatsApp，或者聯絡主管了解詳情。多謝。"],
     ack: ["已收到你嘅回覆。多謝。"],
@@ -39,7 +54,7 @@ const defaults = {
     unavailable: ["呢個更次已經唔可以接受。多謝。"],
   },
   zh: {
-    offer: ["", "，您好。有一个班次邀请，地点是", "，从", "至", "。", " 接受请按", "，拒绝请按", "，重听请按", "。"],
+    offer: ["", "，您好。如需重听班次内容，随时按九。有一个班次邀请，地点是", "，从", "至", "。", " 接受请按", "，拒绝请按", "，重听请按", "。"],
     confirmation: ["您的班次已确认。请查看工作安排或联系主管了解详情。谢谢。"],
     cancellation: ["您的工作安排已取消。请查看 WhatsApp 或联系主管了解详情。谢谢。"],
     ack: ["已收到您的回复。谢谢。"],
@@ -92,15 +107,22 @@ export function voiceTextValues(staff, site, request, { includeOffset = true } =
 }
 export function buildVoiceContent(purpose, staff, site, request, voiceTexts = defaultVoiceTexts(), options) {
   const language = staff.language, profile = voiceProfile(language), values = voiceTextValues(staff, site, request, options);
-  const render = (kind) => voiceTexts[language][kind]
-    .map((text, i) => text + (voiceTokens(kind, voiceTexts[language][kind])[i] ? values[voiceTokens(kind, voiceTexts[language][kind])[i].key] : ""))
-    .join("");
+  const render = (kind) => {
+    const fixedPrompt = voiceReplyPrompts[kind]?.[language];
+    if (fixedPrompt) return fixedPrompt;
+    const parts = voiceTexts[language][kind], tokens = voiceTokens(kind, parts);
+    return parts.map((text, i) => {
+      const key = tokens[i]?.key;
+      const pause = options?.pauseBeforeKeys && key === "accept_key" ? "\n\n" : "";
+      return pause + text + (key ? values[key] : "");
+    }).join("");
+  };
   const kind = purpose === "filled" ? "unavailable" : purpose;
-  if (!Object.hasOwn(voiceTextLayout, kind)) throw Error("Unsupported voice purpose");
+  if (!Object.hasOwn(voiceTextLayout, kind) && !Object.hasOwn(voiceReplyPrompts, kind)) throw Error("Unsupported voice purpose");
   return {
     ...profile,
     script: render(kind),
-    prompts: Object.fromEntries(["ack", "no_input", "unavailable"].map((name) => [name, render(name)])),
+    prompts: Object.fromEntries((purpose === "offer" ? voicePromptKinds : ["ack", "no_input", "unavailable"]).map(name => [name, render(name)])),
     ...(purpose === "offer" ? { repeat_dtmf: "9" } : {}),
   };
 }

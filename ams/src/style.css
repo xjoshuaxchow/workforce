@@ -172,6 +172,16 @@ h2 {
   padding: 5px 15px;
   margin-top: 12px;
 }
+.account .locale-switch {
+  margin-top: 12px;
+  width: 100%;
+}
+.account .locale-switch select {
+  width: 100%;
+  background: #0f242d;
+  color: #e4eef0;
+  border-color: #42606b;
+}
 .content {
   padding: 0 38px 45px;
   max-width: 1600px;
@@ -440,6 +450,20 @@ tbody tr:last-child td {
   height: 100vh;
   color: #81909f;
 }
+.locale-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font-size: 12px;
+}
+.locale-switch select {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.login-card .locale-switch {
+  margin-top: 18px;
+}
 @media (max-width: 1000px) {
   .workspace {
     grid-template-columns: 190px minmax(0, 1fr);
@@ -494,6 +518,10 @@ tbody tr:last-child td {
   }
   .account .quiet {
     margin: 0 0 0 auto;
+  }
+  .account .locale-switch {
+    width: auto;
+    margin-top: 0;
   }
   .content {
     padding: 0 17px 25px;

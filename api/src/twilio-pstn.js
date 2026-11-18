@@ -37,9 +37,11 @@ export function parsePstnConfig(env = process.env) {
 
 function appendVoice(target, payload, kind) {
   const content = payload?.voice;
+  // Earlier snapshots predate the separate outcome prompts.
+  const fallback = { confirmation: "ack", declined_reply: "ack", reply_failed: "unavailable" }[kind];
   // Submitted calls keep their immutable recording snapshot.
   if (content?.audio) {
-    const url = content.audio[kind];
+    const url = content.audio[kind] ?? content.audio[fallback];
     // Old information calls only stored main; a later cancellation must hang up.
     if (kind !== "main" && !url) return;
     const urls = Array.isArray(url) ? url : [url];
@@ -47,23 +49,28 @@ function appendVoice(target, payload, kind) {
     for (const value of urls) target.play(value);
     return;
   }
-  const text = kind === "main" ? content?.script : content?.prompts?.[kind];
+  const text = kind === "main" ? content?.script : content?.prompts?.[kind] ?? content?.prompts?.[fallback];
   if (!text || !content.voice || !content.language) throw Error("Missing voice speech");
   target.say({ voice: content.voice, language: content.language }, text);
 }
 export function voiceTwiml(payload, actionUrl) {
   const response = new twilio.twiml.VoiceResponse();
-  const target = payload.options?.length
-    ? response.gather({
+  if (payload.options?.length) {
+    // An empty first round falls through to the second Gather, including its playback.
+    for (const actionOnEmptyResult of [false, true]) {
+      const round = response.gather({
         input: "dtmf",
         numDigits: 1,
-        timeout: 5,
+        timeout: 20,
         method: "POST",
         action: actionUrl,
-        actionOnEmptyResult: true,
-      })
-    : response;
-  appendVoice(target, payload, "main");
+        actionOnEmptyResult,
+      });
+      appendVoice(round, payload, "main");
+    }
+  } else {
+    appendVoice(response, payload, "main");
+  }
   response.hangup();
   return response.toString();
 }

@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 let observedMessagingMode = null;
 let observedSettingsRevision = null;
 export async function api(path, { method = "GET", body } = {}) {
@@ -5,7 +7,7 @@ export async function api(path, { method = "GET", body } = {}) {
     !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase()) &&
     !path.startsWith("/auth/");
   if (mutation && !observedMessagingMode)
-    throw Error("傳送模式未確認，請稍後重試");
+    throw Error(t("api.modeUnconfirmed"));
   if (path === "/messaging/status") {
     observedMessagingMode = null;
     observedSettingsRevision = null;
@@ -34,8 +36,8 @@ export async function api(path, { method = "GET", body } = {}) {
   } catch {
     const error = new Error(
       response.ok
-        ? `伺服器回應格式不正確（HTTP ${response.status}），請重新整理後再試。`
-        : `服務未能正常回應（HTTP ${response.status}），請稍後再試或檢查服務狀態。`,
+        ? t("api.invalidResponse", { status: response.status })
+        : t("api.unavailable", { status: response.status }),
     );
     Object.assign(error, { status: response.status, reason: "invalid_api_response" });
     throw error;
@@ -56,7 +58,7 @@ export async function api(path, { method = "GET", body } = {}) {
         : null;
   }
   if (!response.ok) {
-    const error = new Error(value.message ?? "操作失敗");
+    const error = new Error(value.message ?? t("api.failed"));
     Object.assign(error, value, { status: response.status });
     throw error;
   }
@@ -71,13 +73,13 @@ export async function loadAllPages(path, request = api) {
     url.searchParams.set("limit", "200");
     url.searchParams.set("page", String(page));
     const data = await request(url.pathname + url.search);
-    if (!Array.isArray(data.items)) throw Error("無法載入完整清單");
+    if (!Array.isArray(data.items)) throw Error(t("api.listIncomplete"));
     if (total === undefined) total = data.total ?? data.items.length;
     const previous = items.size;
     for (const item of data.items) items.set(item.id, item);
     if (items.size >= total)
       return { items: [...items.values()], total: items.size };
     if (items.size === previous)
-      throw Error("清單未完整載入，請重新整理後再試");
+      throw Error(t("api.listStalled"));
   }
 }

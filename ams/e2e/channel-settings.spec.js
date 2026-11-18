@@ -108,7 +108,7 @@ test("Cantonese staff dispatch uses speech without an upload step", async ({
       },
     })
   ).json();
-  await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
   await page.getByRole("button", { name: "查看詳情", exact: true }).click();
   await expect(page.getByRole("heading", { name: "調度電話語音", exact: true })).toBeVisible();
   await expect(page.getByText("電話會按員工語言自動朗讀本次地點、日期、時間及按鍵提示，毋須上傳錄音。", { exact: true })).toBeVisible();
@@ -169,7 +169,7 @@ test('Admin uploads and maps MP3 mode recordings, then draft shows missing fragm
   const staff=await(await page.request.post('/api/staff',{data:{name:'錄音員工',mobile:'+6591234567',language:'yue'}})).json();
   await page.request.post(`/api/sites/${site.id}/staff`,{data:{staff_ids:[staff.id]}});
   const request=await(await page.request.post('/api/requests',{data:{site_id:site.id,mode:'direct',staff_id:staff.id,headcount:1,channels:['voice'],message:'帶證件',start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'}})).json();
-  await page.getByRole('button',{name:'調度工作台',exact:true}).click();
+  await page.getByRole('button',{name:'派更工作台',exact:true}).click();
   await page.getByRole('button',{name:'查看詳情',exact:true}).click();
   await expect(page.getByText('尚欠錄音',{exact:true})).toBeVisible();
   await expect(page.locator('ul').getByText('地點與地址 · MP3 Depot，1 Test Road',{exact:true})).toBeVisible();
@@ -203,7 +203,7 @@ test('WhatsApp-only draft exposes the required recorded voice followup checklist
   const staff=await(await page.request.post('/api/staff',{data:{name:'WA員工',mobile:'+6591234567',language:'yue',whatsapp_opt_in:true,whatsapp_opt_in_source:'test'}})).json();
   await page.request.post(`/api/sites/${site.id}/staff`,{data:{staff_ids:[staff.id]}});
   expect((await page.request.post('/api/requests',{data:{site_id:site.id,mode:'direct',staff_id:staff.id,headcount:1,channels:['whatsapp'],start_at:'2099-11-10T00:00:00Z',end_at:'2099-11-10T08:00:00Z'}})).status()).toBe(201);
-  await page.getByRole('button',{name:'調度工作台',exact:true}).click();
+  await page.getByRole('button',{name:'派更工作台',exact:true}).click();
   await page.getByRole('button',{name:'查看詳情',exact:true}).click();
   await expect(page.getByRole('heading',{name:'調度電話語音',exact:true})).toBeVisible();
   await expect(page.getByText('尚欠錄音',{exact:true})).toBeVisible();

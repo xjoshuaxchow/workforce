@@ -3,6 +3,7 @@ import { transaction } from "./db.js";
 import { mutate, audit } from "./service.js";
 import { fail, validation } from "./domain.js";
 import { requestAccess, eligible } from "./dispatch.js";
+import { voicePromptKinds, voiceReplyPrompts } from "./voice-content.js";
 import { localVoices } from "./voice-synthesis-content.js";
 import { requestSynthesisDescriptors } from "./voice-text-service.js";
 import { insertAudio } from "./voice-assets.js";
@@ -32,13 +33,13 @@ export async function resolveSynthesisPlan(db, config, language, site, request, 
       if (purpose === "offer" && !request.channels.includes("voice")) continue;
       const main = byKind.get(purpose === "filled" ? "unavailable" : purpose);
       voices[purpose] = { language, audio: { main: config.voice.publicBaseUrl + main.playback_path,
-        ...Object.fromEntries(["ack", "no_input", "unavailable"].map(kind => [kind, config.voice.publicBaseUrl + byKind.get(kind).playback_path])) },
+        ...Object.fromEntries(voicePromptKinds.filter(kind => byKind.has(kind)).map(kind => [kind, config.voice.publicBaseUrl + byKind.get(kind).playback_path])) },
         ...(purpose === "offer" ? { repeat_dtmf: "9" } : {}) };
     }
   }
   return { mode: config.voiceClips.mode, language, required, missing, voices };
 }
-const inputSchema = z.object({ language: z.enum(["en", "yue"]), purpose: z.enum(["offer", "confirmation", "cancellation", "ack", "no_input", "unavailable"]), expectedHash: z.string().regex(/^[a-f0-9]{64}$/), retryGeneration: z.number().int().min(1).optional(), previewOnly: z.boolean().optional() }).strict();
+const inputSchema = z.object({ language: z.enum(["en", "yue"]), purpose: z.enum(["offer", "confirmation", "cancellation", "ack", "no_input", "unavailable", ...Object.keys(voiceReplyPrompts)]), expectedHash: z.string().regex(/^[a-f0-9]{64}$/), retryGeneration: z.number().int().min(1).optional(), previewOnly: z.boolean().optional() }).strict();
 
 export function createSynthesisService({ pool, clock, settings, localClientFactory }) {
   async function generate(user, requestId, body) {

@@ -9,7 +9,7 @@ test("AC-D-02-03 request form rejects an end time before its start without sendi
     name: "Form Time Depot",
     timezone: "Asia/Singapore",
   });
-  await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
   await page.getByRole("button", { name: "新增調度", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "新增調度" });
   const date = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
@@ -122,7 +122,7 @@ test("AC-D-04-02 per-channel reply receipt time is visible in request details", 
   const detail = await (
     await page.request.get("/api/requests/" + request.id)
   ).json();
-  await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
   await page
     .getByRole("row")
     .filter({ hasText: "TIMES-UI Depot" })

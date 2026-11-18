@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 // Use one synthesis request per file so a cold first run does not hold a proxy
 // connection open while preparing every prompt. Publication is a separate action.
 export async function prepareVoiceFiles(requestId, preview, api, pause = ms => new Promise(resolve => setTimeout(resolve, ms))) {
@@ -14,8 +16,8 @@ export async function prepareVoiceFiles(requestId, preview, api, pause = ms => n
           ...(['unknown','archived'].includes(current.state) ? {retryGeneration:current.generation} : {}),
         }});
         if (current.state === 'ready') break;
-        if (current.state !== 'submitting') throw Error(current.message || '語音準備失敗，請重試。');
-        if (Date.now() >= deadline) throw Error('語音仍在準備中，請稍後重試。');
+        if (current.state !== 'submitting') throw Error(current.message || t("voice.prepareFailed"));
+        if (Date.now() >= deadline) throw Error(t("voice.prepareTimeout"));
         await pause(1000);
       } while (true);
     }

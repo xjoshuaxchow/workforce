@@ -31,6 +31,16 @@ class NormalizationTest(unittest.TestCase):
         self.assertLess(int(np.argmax(pcm)), int(np.argmin(pcm)))
         self.assertTrue(np.isfinite(pcm).all())
 
+    def test_paragraph_break_adds_a_pause_before_the_keypad_instructions(self):
+        import numpy as np
+        segments = worker.prompt_segments('Shift at North Depot.\n\nPress one to accept.', 'en', {})
+        def synthesize(language, text):
+            return np.full(1000, 0.3, dtype=np.float32), worker.TARGET_RATE
+        pcm = worker.render_segments(segments, synthesize)
+        pause = round(worker.TARGET_RATE * 0.35)
+        self.assertEqual(len(pcm), 2000 + pause)
+        self.assertFalse(pcm[1000:1000 + pause].any())
+
     def test_hong_kong_floor_address_is_spoken_instead_of_rejected(self):
         lexicon = {c: ['phoneme'] for c in '香港九龙长沙湾永康街九号二十八楼t e c h n i g地下一斜线a b'}
         result = worker.normalize_cantonese('tech nine，香港九龍長沙灣永康街9號28/F', lexicon)

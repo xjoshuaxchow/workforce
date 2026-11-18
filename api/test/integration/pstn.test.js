@@ -241,9 +241,10 @@ test("AC-V-02-02 PSTN digit 1 uses the existing acceptance transaction and dupli
   await run();
   const reply = await callback(a, "gather", { Digits: "1" });
   assert.equal(reply.status, 200);
-  assert.match(await reply.text(), /Your response has been received/);
+  assert.match(await reply.text(), /Your shift has been confirmed.*<Hangup/);
   await callback(a, "gather", { Digits: "1" });
-  await callback(a, "gather", { Digits: "2" });
+  const conflicting = await callback(a, "gather", { Digits: "2" });
+  assert.match(await conflicting.text(), /Your shift has been confirmed/);
   const d = await detail(r.id);
   assert.equal(d.accepted, 1);
   assert.equal(d.status, "filled");
@@ -258,6 +259,15 @@ test("AC-V-02-02 PSTN digit 1 uses the existing acceptance transaction and dupli
     "1",
   );
 });
+test("PSTN digit 2 records a decline and plays the result before hanging up", async () => {
+  await setup();
+  const r = await offer({ direct: true });
+  await run();
+  const reply = await callback(r.candidates[0].attempts[0], "gather", { Digits: "2" });
+  assert.equal(reply.status, 200);
+  assert.match(await reply.text(), /Your decline has been recorded.*<Hangup/);
+  assert.equal((await detail(r.id)).candidates[0].final_response, "decline");
+});
 test("PSTN parallel accepts for the last slot allocate exactly one and retain the other result", async () => {
   await setup();
   const r = await offer();
@@ -269,6 +279,9 @@ test("PSTN parallel accepts for the last slot allocate exactly one and retain th
     callback(b, "gather", { Digits: "1" }),
   ]);
   assert.ok(result.every((r) => r.status === 200));
+  const prompts = await Promise.all(result.map(reply => reply.text()));
+  assert.equal(prompts.filter(xml => /Your shift has been confirmed/.test(xml)).length, 1);
+  assert.equal(prompts.filter(xml => /This shift is no longer available/.test(xml)).length, 1);
   const d = await detail(r.id);
   assert.equal(d.accepted, 1);
   assert.deepEqual(d.candidates.map((c) => c.status).sort(), [

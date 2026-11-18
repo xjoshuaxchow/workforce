@@ -1,34 +1,38 @@
 import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
+import { t, voiceLabel } from "./i18n.js";
+import { useI18n } from "./i18n.jsx";
 import { Field, ErrorNotice, Modal } from "./ui.jsx";
 import { ClipLibrary, RequestVoicePreview } from "./VoiceClips.jsx";
 import { LocalVoiceSettings } from "./GeneratedVoice.jsx";
-export const languages = [
-  ["en", "英語"],
-  ["yue", "粵語"],
+export const languageCodes = ["en", "yue"];
+export function languageOptions() {
+  return languageCodes.map((code) => [code, t(`language.${code}`)]);
+}
+const purposeKeys = [
+  "shift_offer_v1",
+  "shift_confirmed_v1",
+  "shift_unavailable_v1",
+  "shift_cancelled_v1",
+  "roster_published_v1",
+  "roster_changed_v1",
 ];
-const purposes = [
-  ["shift_offer_v1", "工作邀請"],
-  ["shift_confirmed_v1", "接單確認"],
-  ["shift_unavailable_v1", "已額滿"],
-  ["shift_cancelled_v1", "取消通知"],
-  ["roster_published_v1", "班表發布"],
-  ["roster_changed_v1", "班表變更"],
+const purposeOptions = () => purposeKeys.map((key) => [key, t(`purpose.${key}`)]);
+const variableKeys = [
+  "staff_name",
+  "site_name",
+  "site_address",
+  "date",
+  "start_time",
+  "end_time",
+  "message",
+  "shifts",
+  "old_date",
+  "old_start_time",
+  "old_end_time",
+  "change",
 ];
-const variableLabels = {
-  staff_name: "員工姓名",
-  site_name: "地點名稱",
-  site_address: "地點地址",
-  date: "日期",
-  start_time: "開始時間",
-  end_time: "結束時間",
-  message: "額外訊息",
-  shifts: "班次清單",
-  old_date: "原日期",
-  old_start_time: "原開始時間",
-  old_end_time: "原結束時間",
-  change: "變更說明",
-};
+const variableOptions = () => variableKeys.map((key) => [key, t(`variable.${key}`)]);
 const editable = (config) => {
   const copy = structuredClone(config);
   delete copy.voice.authTokenConfigured;
@@ -39,6 +43,7 @@ const editable = (config) => {
 };
 export const RequestVoiceSpeech = RequestVoicePreview;
 function TemplateDialog({ language, purpose, template, onClose, onDone }) {
+  useI18n();
   const offer = purpose === "shift_offer_v1",
     bodyComponent = template?.components?.find((x) => x.type === "BODY");
   const [name, setName] = useState(template?.name ?? ""),
@@ -96,41 +101,40 @@ function TemplateDialog({ language, purpose, template, onClose, onDone }) {
   };
   return (
     <Modal
-      title={template ? "修改微服務模板" : "建立微服務模板"}
+      title={template ? t("template.editRemote") : t("template.createRemote")}
       onClose={onClose}
     >
       <p className="muted">
-        送交 Meta 後需等待核准，儲存並不代表可立即發送。這裡管理純文字 BODY
-        及邀請的兩個回覆按鈕。
+        {t("template.metaHint")}
       </p>
       <ErrorNotice error={error} />
       <form onSubmit={submit}>
         <div className="form-grid">
           <Field
-            label="新模板名稱"
+            label={t("template.newName")}
             value={name}
             onChange={setName}
             required
             disabled={Boolean(template)}
           />
           <Field
-            label="模板語言代碼"
+            label={t("template.localeCode")}
             value={locale}
             onChange={setLocale}
             required
             disabled={Boolean(template)}
           />
           <Field
-            label="模板分類"
+            label={t("template.category")}
             value={category}
             onChange={setCategory}
             options={[
-              ["UTILITY", "服務通知"],
-              ["MARKETING", "推廣"],
+              ["UTILITY", t("template.utility")],
+              ["MARKETING", t("template.marketing")],
             ]}
           />
         </div>
-        <Field label="範本文字">
+        <Field label={t("template.body")}>
           <textarea
             rows={5}
             value={body}
@@ -139,23 +143,26 @@ function TemplateDialog({ language, purpose, template, onClose, onDone }) {
           />
         </Field>
         <p className="muted">
-          變數使用 {"{{1}}"}、{"{{2}}"} 等位置標記。請填寫供 Meta 審核的範例值。
+          {t("template.variableHintBefore")}
+          {"{{1}}"}、{"{{2}}"}
+          {t("template.variableHintAfter")}
         </p>
         {numbers.map((n) => (
           <Field
             key={n}
-            label={`變數 ${n} 範例`}
+            label={t("template.example", { n })}
             value={examples[n] ?? ""}
             onChange={(value) => setExamples((old) => ({ ...old, [n]: value }))}
             required
           />
         ))}
-        <button disabled={busy}>{busy ? "送交中…" : "送交模板"}</button>
+        <button disabled={busy}>{busy ? t("template.submitting") : t("template.submit")}</button>
       </form>
     </Modal>
   );
 }
 function TemplateSettings({ draft, setDraft }) {
+  useI18n();
   const [language, setLanguage] = useState("en"),
     [purpose, setPurpose] = useState("shift_offer_v1"),
     [remote, setRemote] = useState([]),
@@ -210,7 +217,7 @@ function TemplateSettings({ draft, setDraft }) {
         0,
         ...[...text.matchAll(/\{\{(\d+)\}\}/g)].map((x) => Number(x[1])),
       );
-    const fields = Object.keys(variableLabels);
+    const fields = variableKeys;
     update({
       name: row.name,
       language: row.language,
@@ -223,51 +230,48 @@ function TemplateSettings({ draft, setDraft }) {
   };
   return (
     <section className="panel settings-panel">
-      <h2>WhatsApp 粵語及英文模板</h2>
+      <h2>{t("template.whatsappTitle")}</h2>
       <div className="form-grid">
         <Field
-          label="內容語言"
+          label={t("template.contentLanguage")}
           value={language}
           onChange={(v) => {
             setLanguage(v);
             setRemote([]);
             setCursor(null);
           }}
-          options={languages}
+          options={languageOptions()}
         />
         <Field
-          label="通知用途"
+          label={t("template.purpose")}
           value={purpose}
           onChange={setPurpose}
-          options={purposes}
+          options={purposeOptions()}
         />
         <Field
-          label="模板名稱"
+          label={t("template.name")}
           value={value.name}
           onChange={(name) => update({ name })}
         />
         <Field
-          label="Meta 語言代碼"
+          label={t("template.metaLanguage")}
           value={value.language}
           onChange={(language) => update({ language })}
         />
       </div>
-      <p className="muted">
-        每種語言與通知用途各自對應 Meta
-        模板。可先保存對應資料；真實發送前必須使用已核准且位置參數相符的模板。
-      </p>
-      <h3>變數順序</h3>
+      <p className="muted">{t("template.mappingHint")}</p>
+      <h3>{t("template.variableOrder")}</h3>
       {value.body.map((field, index) => (
         <div className="actions" key={index}>
           <Field
-            label={`位置 ${index + 1}`}
+            label={t("template.position", { index: index + 1 })}
             value={field}
             onChange={(next) =>
               update({
                 body: value.body.map((old, i) => (i === index ? next : old)),
               })
             }
-            options={Object.entries(variableLabels)}
+            options={variableOptions()}
           />
           <button
             className="quiet"
@@ -276,7 +280,7 @@ function TemplateSettings({ draft, setDraft }) {
               update({ body: value.body.filter((_, i) => i !== index) })
             }
           >
-            移除位置 {index + 1}
+            {t("template.removePosition", { index: index + 1 })}
           </button>
         </div>
       ))}
@@ -285,12 +289,12 @@ function TemplateSettings({ draft, setDraft }) {
         className="quiet"
         onClick={() => update({ body: [...value.body, "message"] })}
       >
-        新增變數位置
+        {t("template.addVariable")}
       </button>
       {offer && (
         <div className="form-grid">
           <Field
-            label="接受按鈕 index"
+            label={t("template.acceptIndex")}
             type="number"
             value={value.buttons?.accept ?? 0}
             onChange={(v) =>
@@ -298,7 +302,7 @@ function TemplateSettings({ draft, setDraft }) {
             }
           />
           <Field
-            label="拒絕按鈕 index"
+            label={t("template.declineIndex")}
             type="number"
             value={value.buttons?.decline ?? 1}
             onChange={(v) =>
@@ -315,10 +319,10 @@ function TemplateSettings({ draft, setDraft }) {
           disabled={busy}
           onClick={() => fetchTemplates()}
         >
-          讀取微服務模板
+          {t("template.loadRemote")}
         </button>
         <button type="button" className="quiet" onClick={() => setDialog({})}>
-          建立模板
+          {t("template.create")}
         </button>
       </div>
       <ErrorNotice error={error} />
@@ -326,10 +330,10 @@ function TemplateSettings({ draft, setDraft }) {
         <table>
           <thead>
             <tr>
-              <th>模板</th>
-              <th>語言</th>
-              <th>審核狀態</th>
-              <th>操作</th>
+              <th>{t("template.columnTemplate")}</th>
+              <th>{t("template.columnLanguage")}</th>
+              <th>{t("template.columnReview")}</th>
+              <th>{t("common.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -351,7 +355,7 @@ function TemplateSettings({ draft, setDraft }) {
                       disabled={row.status !== "APPROVED" || !compatible(row)}
                       onClick={() => choose(row)}
                     >
-                      使用此模板
+                      {t("template.use")}
                     </button>
                     <button
                       type="button"
@@ -359,14 +363,14 @@ function TemplateSettings({ draft, setDraft }) {
                       disabled={!compatible(row)}
                       onClick={() => setDialog(row)}
                     >
-                      修改
+                      {t("template.modify")}
                     </button>
                     <button
                       type="button"
                       className="text-button"
                       onClick={() => setDeleting(row)}
                     >
-                      刪除
+                      {t("template.delete")}
                     </button>
                   </div>
                 </td>
@@ -381,7 +385,7 @@ function TemplateSettings({ draft, setDraft }) {
           disabled={busy}
           onClick={() => fetchTemplates(true)}
         >
-          載入更多模板
+          {t("template.loadMore")}
         </button>
       )}
       {dialog && (
@@ -397,11 +401,8 @@ function TemplateSettings({ draft, setDraft }) {
         />
       )}
       {deleting && (
-        <Modal title="刪除微服務模板" onClose={() => setDeleting(null)}>
-          <p>
-            將從微服務／Meta 刪除 {deleting.name}
-            。請先確認沒有新的通知需要使用它。
-          </p>
+        <Modal title={t("template.deleteTitle")} onClose={() => setDeleting(null)}>
+          <p>{t("template.deleteBody", { name: deleting.name })}</p>
           <button
             onClick={async () => {
               try {
@@ -416,7 +417,7 @@ function TemplateSettings({ draft, setDraft }) {
               }
             }}
           >
-            確認刪除
+            {t("template.confirmDelete")}
           </button>
         </Modal>
       )}
@@ -424,10 +425,12 @@ function TemplateSettings({ draft, setDraft }) {
   );
 }
 function VoiceSettings({ draft, setDraft, layout, shared = false, local = false }) {
+  useI18n();
   const [language, setLanguage] = useState("yue"),
     [purpose, setPurpose] = useState("offer");
+  const spokenLanguages = languageOptions().filter(([code]) => !local || code !== "zh");
   const parts = draft.voiceTexts?.[language]?.[purpose],
-    definition = layout?.[purpose] && { ...layout[purpose], tokens: layout[purpose].tokens.map(token => shared && token.key === "staff_name" ? { ...token, label: "通用稱呼" } : token) },
+    definition = layout?.[purpose] && { ...layout[purpose], tokens: layout[purpose].tokens.map(token => ({ ...token, label: shared && token.key === "staff_name" ? t("speech.genericAddress") : voiceLabel("token", token.key, token.label) })) },
     count = parts?.join("").length ?? 0;
   const changePart = (index, value) => setDraft((old) => ({
     ...old,
@@ -441,36 +444,36 @@ function VoiceSettings({ draft, setDraft, layout, shared = false, local = false 
   }));
   return (
     <section className="panel settings-panel">
-      <h2>{shared ? "AI MP3 固定講稿" : "Twilio Say 粵語及英語"}</h2>
-      <p>{shared ? "完整音檔使用通用稱呼，同一工作及語言的員工共用，不加入個別姓名。" : "電話按員工語言自動朗讀邀請、確認及取消通知，毋須上傳錄音。"}</p>
-      <p className="muted">可修改固定用詞或改用同音字修正讀音。系統資料和按鍵已鎖定，不能在這裡修改。</p>
+      <h2>{shared ? t("speech.sharedTitle") : t("speech.sayTitle")}</h2>
+      <p>{shared ? t("speech.sharedIntro") : t("speech.sayIntro")}</p>
+      <p className="muted">{t("speech.editHint")}</p>
       {definition && parts ? (
         <>
           <div className="form-grid speech-selectors">
-            <Field label="講稿語言" value={language} onChange={setLanguage} options={local ? languages.filter(([code])=>code!=="zh") : languages} />
-            <Field label="講稿用途" value={purpose} onChange={setPurpose}
-              options={Object.entries(layout).map(([key, value]) => [key, value.label])} />
+            <Field label={t("speech.language")} value={language} onChange={setLanguage} options={spokenLanguages} />
+            <Field label={t("speech.purpose")} value={purpose} onChange={setPurpose}
+              options={Object.entries(layout).map(([key, value]) => [key, voiceLabel("purpose", key, value.label)])} />
           </div>
           <div className="speech-workspace">
             <div className="speech-fragments">
               {parts.map((text, index) => (
                 <React.Fragment key={`${language}-${purpose}-${index}`}>
                   <label className="field speech-fragment">
-                    <span>固定字句 {index + 1}</span>
-                    <textarea aria-label={`固定字句 ${index + 1}`} rows={2} maxLength={400}
+                    <span>{t("speech.fixedLine", { index: index + 1 })}</span>
+                    <textarea aria-label={t("speech.fixedLine", { index: index + 1 })} rows={2} maxLength={400}
                       value={text} onChange={(e) => changePart(index, e.target.value)} />
                   </label>
                   {definition.tokens[index] && (
                     <div className="speech-token">
-                      <small>{definition.tokens[index].key.endsWith("_key") ? "固定按鍵" : "系統填入"}</small>
+                      <small>{definition.tokens[index].key.endsWith("_key") ? t("speech.fixedKey") : t("speech.systemFill")}</small>
                       <strong>{definition.tokens[index].label}</strong>
                     </div>
                   )}
                 </React.Fragment>
               ))}
             </div>
-            <section className="speech-preview" aria-label="講稿預覽">
-              <h3>講稿預覽</h3>
+            <section className="speech-preview" aria-label={t("speech.previewLabel")}>
+              <h3>{t("speech.previewTitle")}</h3>
               <p className="speech-preview-text">
                 {parts.map((text, index) => (
                   <React.Fragment key={index}>
@@ -485,27 +488,28 @@ function VoiceSettings({ draft, setDraft, layout, shared = false, local = false 
                   </React.Fragment>
                 ))}
               </p>
-              <p className={count > 1200 ? "notice error" : "muted"}>固定字句 {count}／1200 字，每段上限 400 字。</p>
-              <p className="muted">{shared ? "這是文字預覽，儲存後調度草稿會自動準備 MP3，亦可選擇試聽。" : "這是文字預覽。實際讀音仍以 Twilio 電話為準。"}</p>
-              <p className="muted">完成後按頁頂「儲存設定」。新邀請使用新講稿；已發出的邀請及其跟進通知保留原講稿。</p>
+              <p className={count > 1200 ? "notice error" : "muted"}>{t("speech.fixedCount", { count })}</p>
+              <p className="muted">{shared ? t("speech.sharedPreviewHint") : t("speech.sayPreviewHint")}</p>
+              <p className="muted">{t("speech.saveHint")}</p>
             </section>
           </div>
         </>
-      ) : <p className="muted">重新載入通訊設定後即可編輯講稿。</p>}
-      {!shared && <><h3>電話聲線</h3>
+      ) : <p className="muted">{t("speech.reloadHint")}</p>}
+      {!shared && <><h3>{t("speech.voiceTitle")}</h3>
       <table>
-        <thead><tr><th>員工語言</th><th>電話語言</th><th>聲線</th></tr></thead>
+        <thead><tr><th>{t("speech.employeeLanguage")}</th><th>{t("speech.phoneLanguage")}</th><th>{t("speech.voiceName")}</th></tr></thead>
         <tbody>
-          <tr><td>粵語</td><td>香港粵語</td><td>Google.yue-HK-Standard-A</td></tr>
-          <tr><td>英語</td><td>英國英語</td><td>Google.en-GB-Standard-A</td></tr>
+          <tr><td>{t("language.yue")}</td><td>{t("speech.yuePhone")}</td><td>Google.yue-HK-Standard-A</td></tr>
+          <tr><td>{t("language.en")}</td><td>{t("speech.enPhone")}</td><td>Google.en-GB-Standard-A</td></tr>
         </tbody>
       </table></>}
-      <p className="muted">地點、地址及班次時間由系統加入，使用香港時間。跨午夜會讀出結束日期。接受請按 1，拒絕請按 2，重聽請按 9。</p>
-      <p className="muted">請在員工資料選擇語言，並於真機測試核對地址、數字及日期的讀音。</p>
+      <p className="muted">{t("speech.systemDataHint")}</p>
+      <p className="muted">{t("speech.testHint")}</p>
     </section>
   );
 }
 export function ChannelSettingsPage({ notify }) {
+  useI18n();
   const [current, setCurrent] = useState(null),
     [draft, setDraft] = useState(null),
     [tab, setTab] = useState("connection"),
@@ -535,7 +539,7 @@ export function ChannelSettingsPage({ notify }) {
       setDraft(editable(r.config));
       setConfirm(false);
       await api("/messaging/status");
-      notify("通訊設定已儲存");
+      notify(t("settings.saved"));
     } catch (e) {
       setError(e);
     } finally {
@@ -560,28 +564,26 @@ export function ChannelSettingsPage({ notify }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">CHANNELS</p>
-          <h1>通訊設定</h1>
-          <p className="muted">
-            管理連線、粵語及英文模板與電話語音。已排程邀請保留原設定，後續新邀請使用新設定。
-          </p>
+          <p className="eyebrow">{t("settings.eyebrow")}</p>
+          <h1>{t("settings.title")}</h1>
+          <p className="muted">{t("settings.intro")}</p>
         </div>
         {draft && (
           <button disabled={busy} onClick={attemptSave}>
-            {busy ? "儲存中…" : "儲存設定"}
+            {busy ? t("common.saving") : t("settings.save")}
           </button>
         )}
       </div>
       <ErrorNotice error={error} />
       {!draft ? (
-        <p>載入設定中…</p>
+        <p>{t("settings.loading")}</p>
       ) : (
         <>
           <div className="toolbar">
             {[
-              ["connection", "連線設定"],
-              ["whatsapp", "WhatsApp 模板"],
-              ["voice", "電話語音"],
+              ["connection", t("settings.tabConnection")],
+              ["whatsapp", t("settings.tabWhatsapp")],
+              ["voice", t("settings.tabVoice")],
             ].map(([key, label]) => (
               <button
                 type="button"
@@ -599,12 +601,12 @@ export function ChannelSettingsPage({ notify }) {
                 <h2>Twilio PSTN</h2>
                 <div className="form-grid">
                   <Field
-                    label="Twilio 模式"
+                    label={t("settings.twilioMode")}
                     value={draft.voice.mode}
                     onChange={change("voice", "mode")}
                     options={[
-                      ["mock", "本機模擬"],
-                      ["twilio-pstn", "真實電話"],
+                      ["mock", t("settings.mock")],
+                      ["twilio-pstn", t("settings.realVoice")],
                     ]}
                   />
                   <Field
@@ -619,55 +621,54 @@ export function ChannelSettingsPage({ notify }) {
                     onChange={change("voice", "authToken")}
                   />
                   <Field
-                    label="主叫號碼"
+                    label={t("settings.fromNumber")}
                     value={draft.voice.fromNumber}
                     onChange={change("voice", "fromNumber")}
                   />
                   <Field
-                    label="公開回調網址前綴"
+                    label={t("settings.publicBase")}
                     value={draft.voice.publicBaseUrl}
                     onChange={change("voice", "publicBaseUrl")}
                   />
                 </div>
                 <p className="muted">
-                  Token{" "}
-                  {current.config.voice.authTokenConfigured
-                    ? "已設定，留空保留"
-                    : "尚未設定"}
-                  。填公開 HTTPS 網域，例如 https://example.ngrok-free.app，不加 /api；DTMF、通話狀態及錄音路徑由系統自動加上。內容方式在「電話語音」選擇。
+                  {t("settings.tokenHint", {
+                    state: current.config.voice.authTokenConfigured
+                      ? t("settings.secretSet")
+                      : t("settings.secretMissing"),
+                  })}
                 </p>
               </section>
               <section className="panel settings-panel">
                 <h2>WhatsApp microservice</h2>
                 <div className="form-grid">
                   <Field
-                    label="WhatsApp 模式"
+                    label={t("settings.whatsappMode")}
                     value={draft.whatsapp.mode}
                     onChange={change("whatsapp", "mode")}
                     options={[
-                      ["mock", "本機模擬"],
-                      ["service", "真實微服務"],
+                      ["mock", t("settings.mock")],
+                      ["service", t("settings.realService")],
                     ]}
                   />
                   <Field
-                    label="WhatsApp 服務網址"
+                    label={t("settings.serviceUrl")}
                     value={draft.whatsapp.url}
                     onChange={change("whatsapp", "url")}
                   />
                   <Field
-                    label="WhatsApp API key"
+                    label={t("settings.apiKey")}
                     type="password"
                     value={draft.whatsapp.key}
                     onChange={change("whatsapp", "key")}
                   />
                 </div>
                 <p className="muted">
-                  API key{" "}
-                  {current.config.whatsapp.keyConfigured
-                    ? "已設定，留空保留"
-                    : "尚未設定"}
-                  。填 microservice origin，不加
-                  /v1。密鑰儲存後不會回傳到瀏覽器。可先啟用真實微服務並準備模板；實際發送前仍會檢查使用的模板是否已核准。
+                  {t("settings.keyHint", {
+                    state: current.config.whatsapp.keyConfigured
+                      ? t("settings.secretSet")
+                      : t("settings.secretMissing"),
+                  })}
                 </p>
               </section>
             </>
@@ -677,7 +678,7 @@ export function ChannelSettingsPage({ notify }) {
           )}{" "}
           {tab === "voice" && (
             <>
-              <section className="panel settings-panel"><Field label="電話內容方式" value={draft.voiceClips?.mode ?? "say"} onChange={mode=>setDraft(old=>({...old,voiceClips:{...old.voiceClips,mode}}))} options={[["local-mp3","本機生成完整 MP3（粵語／英語）"],["say","Twilio Say 語音合成"],["clips","自備 MP3／WAV 片段"]]}/><p className="muted">儲存後只影響新發出的工作，原有工作及跟進通知保留原設定。</p></section>
+              <section className="panel settings-panel"><Field label={t("settings.contentMode")} value={draft.voiceClips?.mode ?? "say"} onChange={mode=>setDraft(old=>({...old,voiceClips:{...old.voiceClips,mode}}))} options={[["local-mp3", t("settings.modeLocal")], ["say", t("settings.modeSay")], ["clips", t("settings.modeClips")]]}/><p className="muted">{t("settings.modeHint")}</p></section>
               {draft.voiceClips?.mode === "clips" ? <ClipLibrary draft={draft} setDraft={setDraft} savedVersion={current.id}/>
                 : <>
                 {draft.voiceClips?.mode === "local-mp3" && <LocalVoiceSettings draft={draft} setDraft={setDraft} status={current.localSpeechStatus}/>}
@@ -687,14 +688,10 @@ export function ChannelSettingsPage({ notify }) {
         </>
       )}
       {confirm && (
-        <Modal title="啟用真實渠道" onClose={() => setConfirm(false)}>
-          <p>
-            儲存後，新建立的邀請可能發出真實電話或
-            WhatsApp。請確認接收名單、模板及員工語言；原有 mock
-            工作不會自動改為真實發送。
-          </p>
+        <Modal title={t("settings.enableTitle")} onClose={() => setConfirm(false)}>
+          <p>{t("settings.enableBody")}</p>
           <button disabled={busy} onClick={save}>
-            確認啟用並儲存
+            {t("settings.confirmEnable")}
           </button>
         </Modal>
       )}

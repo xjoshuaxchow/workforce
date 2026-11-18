@@ -65,7 +65,7 @@ test("AC-D-02-01 and AC-D-04-01 dispatch response appears through polling", asyn
   await page.request.post(`/api/sites/${site.id}/staff`, {
     data: { staff_ids: [staff.id] },
   });
-  await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
   await page.getByRole("button", { name: "新增調度", exact: true }).click();
   await page.getByLabel("工作地點", { exact: true }).selectOption(site.id);
   const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);

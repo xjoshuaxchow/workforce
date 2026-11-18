@@ -52,7 +52,7 @@ test("Review regression candidate search stays clearable when adding staff shrin
     );
     expect(removed.ok()).toBeTruthy();
   }
-  await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
   await page.getByRole("button", { name: "查看詳情" }).click();
   const search = page.getByLabel("搜尋加入候選員工", { exact: true });
   await search.fill("Picker Staff 00");

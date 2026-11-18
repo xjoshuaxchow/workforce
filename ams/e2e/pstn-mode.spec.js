@@ -42,7 +42,7 @@ for (const mode of ["mock", "twilio-pstn"])
         end_at: new Date(start + 3600000).toISOString(),
       },
     });
-    await page.getByRole("button", { name: "調度工作台", exact: true }).click();
+    await page.getByRole("button", { name: "派更工作台", exact: true }).click();
     await page.getByRole("button", { name: "查看詳情" }).click();
     if (mode === "mock")
       await expect(

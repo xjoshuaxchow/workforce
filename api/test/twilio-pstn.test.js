@@ -61,9 +61,17 @@ test("AC-V-01-01 AC-V-02-01 PSTN TwiML plays uploaded audio and safely escapes i
     },
     "https://voice.example.test/gather",
   );
-  assert.match(xml, /<Gather[^>]*numDigits="1"/);
-  assert.match(xml, /actionOnEmptyResult="true"/);
-  assert.match(xml, /action="https:\/\/voice.example.test\/gather"/);
+  const rounds = [...xml.matchAll(/<Gather([^>]*)>(.*?)<\/Gather>/g)];
+  assert.equal(rounds.length, 2);
+  for (const [, attributes, content] of rounds) {
+    assert.match(attributes, /numDigits="1"/);
+    assert.match(attributes, /timeout="20"/);
+    assert.match(attributes, /action="https:\/\/voice.example.test\/gather"/);
+    assert.match(content, /<Play>https:/);
+  }
+  assert.doesNotMatch(rounds[0][1], /actionOnEmptyResult="true"/);
+  assert.match(rounds[1][1], /actionOnEmptyResult="true"/);
+  assert.equal(rounds[0][2], rounds[1][2]);
   assert.match(xml, /<Play>https:/);
   assert.match(xml, /&amp;b=2/);
   assert.doesNotMatch(xml, /<Say/);

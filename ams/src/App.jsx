@@ -1,18 +1,16 @@
-import { HONG_KONG_TIMEZONE } from "./time.js";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
+import { formatDate, t } from "./i18n.js";
+import { LocaleSwitch, useI18n } from "./i18n.jsx";
 import {
   ChannelSettingsPage,
-  languages as channelLanguages,
+  languageCodes,
+  languageOptions,
 } from "./ChannelSettingsPage.jsx";
 import { Requests, Roster } from "./DispatchPages.jsx";
 
-const statusLabels = {
-  active: "可聯絡",
-  on_leave: "休假",
-  blocked: "已封鎖",
-  inactive: "已停用",
-};
+const staffStatuses = ["active", "on_leave", "blocked", "inactive"];
+const staffStatusOptions = () => staffStatuses.map((code) => [code, t(`staff.status.${code}`)]);
 import {
   ErrorNotice,
   Field,
@@ -24,6 +22,7 @@ import {
   mutationNotice,
 } from "./ui.jsx";
 function CSVImport({ path, onDone, onClose, description }) {
+  useI18n();
   const [file, setFile] = useState(null),
     [error, setError] = useState(null),
     [busy, setBusy] = useState(false);
@@ -31,7 +30,7 @@ function CSVImport({ path, onDone, onClose, description }) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (!file) throw Error("請選擇 CSV 檔案");
+      if (!file) throw Error(t("csv.choose"));
       const result = await api(path, {
         method: "POST",
         body: { csv: await file.text() },
@@ -44,12 +43,12 @@ function CSVImport({ path, onDone, onClose, description }) {
     }
   };
   return (
-    <Modal title="匯入 CSV" onClose={onClose}>
+    <Modal title={t("csv.title")} onClose={onClose}>
       <p className="muted">{description}</p>
-      <p className="muted">最多 5,000 行、5 MB；所有資料驗證成功後才會匯入。</p>
+      <p className="muted">{t("csv.limit")}</p>
       <ErrorNotice error={error} />
       <form onSubmit={submit}>
-        <Field label="CSV 檔案">
+        <Field label={t("csv.file")}>
           <input
             type="file"
             accept=".csv,text/csv"
@@ -58,15 +57,16 @@ function CSVImport({ path, onDone, onClose, description }) {
         </Field>
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
-          <button disabled={busy}>{busy ? "匯入中…" : "確認匯入"}</button>
+          <button disabled={busy}>{busy ? t("csv.importing") : t("csv.confirm")}</button>
         </div>
       </form>
     </Modal>
   );
 }
 function StaffForm({ staff, onDone, onClose }) {
+  useI18n();
   const [value, setValue] = useState(
       staff ?? {
         name: "",
@@ -88,11 +88,11 @@ function StaffForm({ staff, onDone, onClose }) {
     const mobile = value.mobile.replace(/[\s-]/g, "");
     if (!/^\+[1-9]\d{7,14}$/.test(mobile)) {
       setError({
-        message: "請檢查資料",
+        message: t("staff.checkData"),
         errors: [
           {
             field: "mobile",
-            message: "手機號碼須含國際區號，例如 +85296644718",
+            message: t("staff.mobileInvalid"),
           },
         ],
       });
@@ -108,7 +108,7 @@ function StaffForm({ staff, onDone, onClose }) {
           whatsapp_opt_in_source: value.whatsapp_opt_in_source || null,
         },
       });
-      onDone(mutationNotice("員工資料已儲存", result.warnings));
+      onDone(mutationNotice(t("staff.saved"), result.warnings));
     } catch (e) {
       setError(e);
     } finally {
@@ -116,35 +116,35 @@ function StaffForm({ staff, onDone, onClose }) {
     }
   };
   return (
-    <Modal title={staff ? "編輯員工" : "新增員工"} onClose={onClose}>
+    <Modal title={staff ? t("staff.editTitle") : t("staff.createTitle")} onClose={onClose}>
       <ErrorNotice error={error} />
       <form onSubmit={submit}>
         <div className="form-grid">
           <Field
-            label="姓名"
+            label={t("common.name")}
             value={value.name}
             onChange={change("name")}
             required
           />
           <Field
-            label="手機號碼"
+            label={t("staff.mobile")}
             value={value.mobile}
             onChange={change("mobile")}
             required
           />
           <Field
-            label="固網號碼"
+            label={t("staff.landline")}
             value={value.landline}
             onChange={change("landline")}
           />
           <Field
-            label="語言代碼"
+            label={t("staff.language")}
             options={
-              channelLanguages.some((x) => x[0] === value.language)
-                ? channelLanguages
+              languageCodes.includes(value.language)
+                ? languageOptions()
                 : [
-                    ...channelLanguages,
-                    [value.language, value.language + "（未設定內容）"],
+                    ...languageOptions(),
+                    [value.language, value.language + t("language.unset")],
                   ]
             }
             value={value.language}
@@ -152,19 +152,19 @@ function StaffForm({ staff, onDone, onClose }) {
             required
           />
           <Field
-            label="偏好渠道"
+            label={t("staff.preferredChannel")}
             value={value.preferred_channel}
             onChange={change("preferred_channel")}
             options={[
-              ["whatsapp", "WhatsApp"],
-              ["voice", "電話"],
+              ["whatsapp", t("common.whatsapp")],
+              ["voice", t("common.voice")],
             ]}
           />
           <Field
-            label="狀態"
+            label={t("common.status")}
             value={value.status}
             onChange={change("status")}
-            options={Object.entries(statusLabels)}
+            options={staffStatusOptions()}
           />
         </div>
         <label className="checkbox">
@@ -173,20 +173,21 @@ function StaffForm({ staff, onDone, onClose }) {
             checked={value.whatsapp_opt_in}
             onChange={(e) => change("whatsapp_opt_in")(e.target.checked)}
           />
-          員工已同意接收公司工作通知
+          {t("staff.optIn")}
         </label>
-        <p className="muted">只需確認一次，系統會記錄確認時間及操作人。未勾選時不會透過 WhatsApp 聯絡此員工。</p>
+        <p className="muted">{t("staff.optInHint")}</p>
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
-          <button disabled={busy}>{busy ? "儲存中…" : "儲存"}</button>
+          <button disabled={busy}>{busy ? t("common.saving") : t("common.save")}</button>
         </div>
       </form>
     </Modal>
   );
 }
 function Staff({ user, notify, onContact }) {
+  useI18n();
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
     [page, setPage] = useState(1),
@@ -201,7 +202,7 @@ function Staff({ user, notify, onContact }) {
     try {
       const { items } = await loadAllPages(`/staff/${staff.id}/sites`);
       const sites = items.filter((s) => s.status === "active");
-      if (!sites.length) throw Error("請先將此員工關聯到啟用的工作地點");
+      if (!sites.length) throw Error(t("staff.linkFirst"));
       onContact({
         mode: "direct",
         staff_id: staff.id,
@@ -228,16 +229,16 @@ function Staff({ user, notify, onContact }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">PEOPLE</p>
-          <h1>員工管理</h1>
-          <p className="muted">維護聯絡資料、可聯絡狀態與工作地點關聯。</p>
+          <p className="eyebrow">{t("staff.eyebrow")}</p>
+          <h1>{t("staff.title")}</h1>
+          <p className="muted">{t("staff.intro")}</p>
         </div>
         {user.role === "admin" && (
           <div className="actions">
             <button className="quiet" onClick={() => setImporting(true)}>
-              匯入 CSV
+              {t("staff.import")}
             </button>
-            <button onClick={() => setForm({})}>新增員工</button>
+            <button onClick={() => setForm({})}>{t("staff.add")}</button>
           </div>
         )}
       </div>
@@ -245,8 +246,8 @@ function Staff({ user, notify, onContact }) {
       <section className="panel">
         <div className="toolbar">
           <input
-            aria-label="搜尋員工"
-            placeholder="搜尋姓名或手機號碼"
+            aria-label={t("staff.search")}
+            placeholder={t("common.searchPeople")}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -254,15 +255,15 @@ function Staff({ user, notify, onContact }) {
             }}
           />
           <select
-            aria-label="篩選狀態"
+            aria-label={t("staff.filterStatus")}
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);
               setPage(1);
             }}
           >
-            <option value="">所有啟用員工</option>
-            {Object.entries(statusLabels).map(([value, label]) => (
+            <option value="">{t("staff.allActive")}</option>
+            {staffStatusOptions().map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -273,11 +274,11 @@ function Staff({ user, notify, onContact }) {
           <table>
             <thead>
               <tr>
-                <th>員工</th>
-                <th>手機號碼</th>
-                <th>狀態</th>
-                <th>WhatsApp 同意</th>
-                <th>操作</th>
+                <th>{t("common.staff")}</th>
+                <th>{t("staff.mobile")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("staff.optInColumn")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -287,7 +288,7 @@ function Staff({ user, notify, onContact }) {
                     <strong>{s.name}</strong>
                     <small>
                       {s.language.toUpperCase()} ·{" "}
-                      {s.preferred_channel === "voice" ? "電話" : "WhatsApp"}
+                      {s.preferred_channel === "voice" ? t("common.voice") : t("common.whatsapp")}
                     </small>
                   </td>
                   <td>{s.mobile}</td>
@@ -295,24 +296,24 @@ function Staff({ user, notify, onContact }) {
                     <span
                       className={`badge ${s.status === "active" ? "success" : ""}`}
                     >
-                      {statusLabels[s.status]}
+                      {t(`staff.status.${s.status}`)}
                     </span>
                   </td>
-                  <td>{s.whatsapp_opt_in ? "已同意" : "未同意"}</td>
+                  <td>{s.whatsapp_opt_in ? t("staff.optedIn") : t("staff.optedOut")}</td>
                   <td>
                     <button
                       className="text-button"
                       disabled={staffContactDisabled(s, contacting)}
                       onClick={() => contact(s)}
                     >
-                      直接邀請
+                      {t("staff.invite")}
                     </button>
                     {user.role === "admin" && (
                       <button
                         className="text-button"
                         onClick={() => setForm(s)}
                       >
-                        編輯
+                        {t("common.edit")}
                       </button>
                     )}
                   </td>
@@ -322,7 +323,7 @@ function Staff({ user, notify, onContact }) {
           </table>
           {!data.items.length && (
             <div className="empty">
-              {loading ? "載入中…" : "暫無符合條件的員工"}
+              {loading ? t("common.loading") : t("staff.empty")}
             </div>
           )}
         </div>
@@ -338,8 +339,8 @@ function Staff({ user, notify, onContact }) {
       {importing && (
         <CSVImport
           path="/staff/import"
-          description="必要欄位：name、mobile。語言填 en 或 yue；已取得工作通知同意時可填 whatsapp_opt_in=true，毋須填寫同意來源。"
-          onDone={(r) => done(`已匯入 ${r.created} 位員工`)}
+          description={t("staff.importHelp")}
+          onDone={(r) => done(t("staff.imported", { count: r.created }))}
           onClose={() => setImporting(false)}
         />
       )}
@@ -349,6 +350,7 @@ function Staff({ user, notify, onContact }) {
 const staffContactDisabled = (staff, contacting) =>
   staff.status !== "active" || contacting !== null;
 function SiteForm({ site, onDone, onClose }) {
+  useI18n();
   const [value, setValue] = useState(
       site ?? {
         code: "",
@@ -371,7 +373,7 @@ function SiteForm({ site, onDone, onClose }) {
         method: site ? "PATCH" : "POST",
         body: { ...value, timezone: value.timezone ?? "Asia/Hong_Kong" },
       });
-      onDone("地點資料已儲存");
+      onDone(t("site.saved"));
     } catch (e) {
       setError(e);
     } finally {
@@ -379,51 +381,52 @@ function SiteForm({ site, onDone, onClose }) {
     }
   };
   return (
-    <Modal title={site ? "編輯地點" : "新增地點"} onClose={onClose}>
+    <Modal title={site ? t("site.editTitle") : t("site.createTitle")} onClose={onClose}>
       <ErrorNotice error={error} />
       <form onSubmit={submit}>
         <div className="form-grid">
           <Field
-            label="代碼"
+            label={t("site.code")}
             value={value.code}
             onChange={change("code")}
             required
           />
           <Field
-            label="地點名稱"
+            label={t("site.name")}
             value={value.name}
             onChange={change("name")}
             required
           />
           <Field
-            label="狀態"
+            label={t("common.status")}
             value={value.status}
             onChange={change("status")}
             options={[
-              ["active", "啟用"],
-              ["inactive", "停用"],
+              ["active", t("site.status.active")],
+              ["inactive", t("site.status.inactive")],
             ]}
           />
         </div>
         <Field
-          label="地址"
+          label={t("site.address")}
           value={value.address}
           onChange={change("address")}
         />
-        <Field label="英文朗讀名稱" value={value.voice_name_en ?? ""} onChange={change("voice_name_en")} />
-        <Field label="英文朗讀地址" value={value.voice_address_en ?? ""} onChange={change("voice_address_en")} />
-        <p className="muted">只用於英語電話 MP3，原有地點名稱及地址保持不變。原資料已是英文時可留空。</p>
+        <Field label={t("site.voiceName")} value={value.voice_name_en ?? ""} onChange={change("voice_name_en")} />
+        <Field label={t("site.voiceAddress")} value={value.voice_address_en ?? ""} onChange={change("voice_address_en")} />
+        <p className="muted">{t("site.voiceHint")}</p>
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
-          <button disabled={busy}>儲存</button>
+          <button disabled={busy}>{t("common.save")}</button>
         </div>
       </form>
     </Modal>
   );
 }
 function LinkForm({ site, onDone, onClose }) {
+  useI18n();
   const { data, error, loading: staffLoading } = useAllList("/staff"),
     [selected, setSelected] = useState(new Set()),
     [initial, setInitial] = useState(new Set()),
@@ -464,7 +467,7 @@ function LinkForm({ site, onDone, onClose }) {
           });
           warnings.push(...(r.warnings ?? []));
         }
-      onDone(mutationNotice("員工關聯已儲存", warnings));
+      onDone(mutationNotice(t("site.linkSaved"), warnings));
     } catch (e) {
       setFailure(e);
     } finally {
@@ -472,11 +475,11 @@ function LinkForm({ site, onDone, onClose }) {
     }
   };
   return (
-    <Modal title={`${site.name} 員工關聯`} onClose={onClose}>
-      <p className="muted">勾選獲准在此地點工作的員工。</p>
+    <Modal title={t("site.linkTitle", { name: site.name })} onClose={onClose}>
+      <p className="muted">{t("site.linkHint")}</p>
       <ErrorNotice error={initialError ?? failure ?? error} />
       <form onSubmit={submit}>
-        <PagedItems label="關聯員工" items={data.items}>
+        <PagedItems label={t("site.linkLabel")} items={data.items}>
           {(s) => (
             <label className="checkbox" key={s.id}>
               <input
@@ -497,14 +500,14 @@ function LinkForm({ site, onDone, onClose }) {
         </PagedItems>
         <div className="form-actions">
           <button type="button" className="quiet" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
           <button
             disabled={
               loading || staffLoading || Boolean(error) || Boolean(initialError)
             }
           >
-            儲存關聯
+            {t("site.saveLinks")}
           </button>
         </div>
       </form>
@@ -512,6 +515,7 @@ function LinkForm({ site, onDone, onClose }) {
   );
 }
 function Sites({ user, notify }) {
+  useI18n();
   const [version, setVersion] = useState(0),
     [page, setPage] = useState(1),
     [form, setForm] = useState(null),
@@ -529,16 +533,16 @@ function Sites({ user, notify }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">LOCATIONS</p>
-          <h1>工作地點</h1>
-          <p className="muted">管理工作地點及可工作員工。日期時間統一使用香港時間。</p>
+          <p className="eyebrow">{t("site.eyebrow")}</p>
+          <h1>{t("site.title")}</h1>
+          <p className="muted">{t("site.intro")}</p>
         </div>
         {user.role === "admin" && (
           <div className="actions">
             <button className="quiet" onClick={() => setImporting(true)}>
-              匯入員工關聯
+              {t("site.importLinks")}
             </button>
-            <button onClick={() => setForm({})}>新增地點</button>
+            <button onClick={() => setForm({})}>{t("site.add")}</button>
           </div>
         )}
       </div>
@@ -547,11 +551,11 @@ function Sites({ user, notify }) {
         <table>
           <thead>
             <tr>
-              <th>地點</th>
-              <th>代碼</th>
-              <th>時間</th>
-              <th>狀態</th>
-              <th>操作</th>
+              <th>{t("site.columnSite")}</th>
+              <th>{t("site.columnCode")}</th>
+              <th>{t("site.columnTime")}</th>
+              <th>{t("common.status")}</th>
+              <th>{t("common.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -559,15 +563,15 @@ function Sites({ user, notify }) {
               <tr key={s.id}>
                 <td>
                   <strong>{s.name}</strong>
-                  <small>{s.address || "未填地址"}</small>
+                  <small>{s.address || t("site.noAddress")}</small>
                 </td>
                 <td>{s.code}</td>
-                <td>香港時間</td>
+                <td>{t("common.hongKongTime")}</td>
                 <td>
                   <span
                     className={`badge ${s.status === "active" ? "success" : ""}`}
                   >
-                    {s.status === "active" ? "啟用" : "停用"}
+                    {s.status === "active" ? t("site.status.active") : t("site.status.inactive")}
                   </span>
                 </td>
                 <td>
@@ -577,13 +581,13 @@ function Sites({ user, notify }) {
                         className="text-button"
                         onClick={() => setForm(s)}
                       >
-                        編輯
+                        {t("common.edit")}
                       </button>
                       <button
                         className="text-button"
                         onClick={() => setLink(s)}
                       >
-                        管理員工
+                        {t("site.manageStaff")}
                       </button>
                     </div>
                   )}
@@ -594,7 +598,7 @@ function Sites({ user, notify }) {
         </table>
         {!data.items.length && (
           <div className="empty">
-            {loading ? "載入中…" : "尚未建立工作地點"}
+            {loading ? t("common.loading") : t("site.empty")}
           </div>
         )}
         <Pager data={data} page={page} onChange={setPage} />
@@ -612,9 +616,9 @@ function Sites({ user, notify }) {
       {importing && (
         <CSVImport
           path="/links/import"
-          description="必要欄位：site_code、staff_mobile。既有關聯不會重複建立。"
+          description={t("site.importHelp")}
           onDone={(r) =>
-            done(`新增 ${r.linked} 個關聯，${r.already_linked} 個已存在`)
+            done(t("site.imported", { linked: r.linked, existing: r.already_linked }))
           }
           onClose={() => setImporting(false)}
         />
@@ -623,6 +627,7 @@ function Sites({ user, notify }) {
   );
 }
 function Users({ notify }) {
+  useI18n();
   const [version, setVersion] = useState(0),
     [form, setForm] = useState(false),
     [error, setError] = useState(null),
@@ -656,7 +661,7 @@ function Users({ notify }) {
       setForm(false);
       setValue({ email: "", name: "", password: "", role: "site_manager" });
       setVersion((x) => x + 1);
-      notify("帳戶已建立");
+      notify(t("users.created"));
     } catch (e) {
       setError(e);
     }
@@ -669,7 +674,7 @@ function Users({ notify }) {
         body: { site_id: site },
       });
       setAssignment(null);
-      notify("Site 授權已儲存");
+      notify(t("users.grantSaved"));
     } catch (e) {
       setError(e);
     }
@@ -678,9 +683,9 @@ function Users({ notify }) {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">ACCESS</p>
-          <h1>帳戶與權限</h1>
-          <p className="muted">管理員工調度系統的登入帳戶與 Site 授權。</p>
+          <p className="eyebrow">{t("users.eyebrow")}</p>
+          <h1>{t("users.title")}</h1>
+          <p className="muted">{t("users.intro")}</p>
         </div>
         <button
           onClick={() => {
@@ -688,7 +693,7 @@ function Users({ notify }) {
             setForm(true);
           }}
         >
-          新增帳戶
+          {t("users.add")}
         </button>
       </div>
       <ErrorNotice error={listError ?? siteError} />
@@ -696,10 +701,10 @@ function Users({ notify }) {
         <table>
           <thead>
             <tr>
-              <th>姓名</th>
-              <th>電郵</th>
-              <th>角色</th>
-              <th>操作</th>
+              <th>{t("common.name")}</th>
+              <th>{t("common.email")}</th>
+              <th>{t("users.role")}</th>
+              <th>{t("common.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -707,7 +712,7 @@ function Users({ notify }) {
               <tr key={u.id}>
                 <td>{u.name}</td>
                 <td>{u.email}</td>
-                <td>{u.role === "admin" ? "管理員" : "Site Manager"}</td>
+                <td>{u.role === "admin" ? t("common.admin") : t("common.siteManager")}</td>
                 <td>
                   {u.role === "site_manager" && (
                     <button
@@ -718,7 +723,7 @@ function Users({ notify }) {
                         setError(null);
                       }}
                     >
-                      授權地點
+                      {t("users.grantSites")}
                     </button>
                   )}
                 </td>
@@ -729,13 +734,13 @@ function Users({ notify }) {
         <Pager data={data} page={page} onChange={setPage} />
       </section>
       {form && (
-        <Modal title="新增帳戶" onClose={() => setForm(false)}>
+        <Modal title={t("users.createTitle")} onClose={() => setForm(false)}>
           <ErrorNotice error={error} />
           <form onSubmit={submit}>
             {[
-              ["姓名", "name", "text"],
-              ["電郵", "email", "email"],
-              ["密碼", "password", "password"],
+              [t("common.name"), "name", "text"],
+              [t("common.email"), "email", "email"],
+              [t("common.password"), "password", "password"],
             ].map(([label, key, type]) => (
               <Field
                 key={key}
@@ -746,25 +751,25 @@ function Users({ notify }) {
                 onChange={(v) => setValue((x) => ({ ...x, [key]: v }))}
               />
             ))}
-            <p className="muted">密碼至少 12 個字元。</p>
+            <p className="muted">{t("users.passwordHint")}</p>
             <Field
-              label="角色"
+              label={t("users.role")}
               value={value.role}
               onChange={(v) => setValue((x) => ({ ...x, role: v }))}
               options={[
-                ["site_manager", "Site Manager"],
-                ["admin", "管理員"],
+                ["site_manager", t("common.siteManager")],
+                ["admin", t("common.admin")],
               ]}
             />
             <div className="form-actions">
-              <button>建立帳戶</button>
+              <button>{t("users.create")}</button>
             </div>
           </form>
         </Modal>
       )}
       {assignment && (
         <Modal
-          title={`${assignment.name} 的地點授權`}
+          title={t("users.grantTitle", { name: assignment.name })}
           onClose={() => setAssignment(null)}
         >
           <ErrorNotice error={error} />
@@ -780,26 +785,26 @@ function Users({ notify }) {
                         method: "DELETE",
                       });
                       setGrants((old) => old.filter((x) => x.id !== s.id));
-                      notify("Site 授權已撤銷");
+                      notify(t("users.grantRevoked"));
                     } catch (e) {
                       setError(e);
                     }
                   }}
                 >
-                  撤銷授權
+                  {t("users.revoke")}
                 </button>
               </div>
             ))}
           </div>
           <form onSubmit={assign}>
             <Field
-              label="地點"
+              label={t("users.site")}
               value={site}
               onChange={setSite}
               options={sites.items.map((s) => [s.id, s.name])}
             />
             <div className="form-actions">
-              <button disabled={!site}>儲存授權</button>
+              <button disabled={!site}>{t("users.saveGrant")}</button>
             </div>
           </form>
         </Modal>
@@ -808,15 +813,16 @@ function Users({ notify }) {
   );
 }
 function Audit() {
+  useI18n();
   const [page, setPage] = useState(1);
   const { data, error } = useList(`/audit?page=${page}`);
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">ACTIVITY</p>
-          <h1>操作紀錄</h1>
-          <p className="muted">查看有權存取的資料變更與操作時間。</p>
+          <p className="eyebrow">{t("audit.eyebrow")}</p>
+          <h1>{t("audit.title")}</h1>
+          <p className="muted">{t("audit.intro")}</p>
         </div>
       </div>
       <ErrorNotice error={error} />
@@ -824,16 +830,16 @@ function Audit() {
         <table>
           <thead>
             <tr>
-              <th>時間</th>
-              <th>操作</th>
-              <th>資料類型</th>
-              <th>操作者</th>
+              <th>{t("audit.time")}</th>
+              <th>{t("audit.action")}</th>
+              <th>{t("audit.entity")}</th>
+              <th>{t("audit.actor")}</th>
             </tr>
           </thead>
           <tbody>
             {data.items.map((a) => (
               <tr key={a.id}>
-                <td>{new Date(a.at).toLocaleString("zh-HK", {timeZone: HONG_KONG_TIMEZONE})}</td>
+                <td>{formatDate(a.at)}</td>
                 <td>{a.action}</td>
                 <td>{a.entity_type}</td>
                 <td>{a.actor_type}</td>
@@ -847,6 +853,7 @@ function Audit() {
   );
 }
 export function App() {
+  useI18n();
   const [user, setUser] = useState(null),
     [loading, setLoading] = useState(true),
     [page, setPage] = useState("staff"),
@@ -920,59 +927,60 @@ export function App() {
       setError(e);
     }
   };
-  if (loading) return <main className="loading">載入中…</main>;
+  if (loading) return <main className="loading">{t("common.loading")}</main>;
   if (!user)
     return (
       <main className="login-layout">
         <section className="login-intro">
           <span className="brand-mark">W</span>
-          <p className="eyebrow">WORKFORCE</p>
+          <p className="eyebrow">{t("login.eyebrow")}</p>
           <h1>
-            讓每個班次
+            {t("login.headline1")}
             <br />
-            找到合適的人
+            {t("login.headline2")}
           </h1>
-          <p>員工、地點與排班，從同一個工作台開始。</p>
+          <p>{t("login.intro")}</p>
         </section>
         <section className="login-card">
-          <p className="eyebrow">WELCOME BACK</p>
-          <h2>登入工作台</h2>
-          <p className="muted">使用你的員工調度管理帳戶。</p>
+          <p className="eyebrow">{t("login.welcomeEyebrow")}</p>
+          <h2>{t("login.title")}</h2>
+          <p className="muted">{t("login.hint")}</p>
           <ErrorNotice error={error} />
           <form onSubmit={login}>
             <Field
-              label="電郵"
+              label={t("common.email")}
               type="email"
               value={email}
               onChange={setEmail}
               required
             />
             <Field
-              label="密碼"
+              label={t("common.password")}
               type="password"
               value={password}
               onChange={setPassword}
               required
             />
             <button className="full-width" disabled={busy}>
-              {busy ? "登入中…" : "登入"}
+              {busy ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
+          <LocaleSwitch />
         </section>
       </main>
     );
   const nav = [
-    ["requests", "調度工作台"],
-    ["roster", "班表"],
-    ["staff", "員工管理"],
-    ["sites", "工作地點"],
+    ["requests", t("nav.requests")],
+    ["roster", t("nav.roster")],
+    ["staff", t("nav.staff")],
+    ["sites", t("nav.sites")],
     ...(user.role === "admin"
       ? [
-          ["users", "帳戶與權限"],
-          ["settings", "通訊設定"],
+          ["users", t("nav.users")],
+          ["settings", t("nav.settings")],
         ]
       : []),
-    ["audit", "操作紀錄"],
+    ["audit", t("nav.audit")],
   ];
   return (
     <div className="workspace">
@@ -980,10 +988,10 @@ export function App() {
         <div className="brand">
           <span className="brand-mark">W</span>
           <span>
-            WORKFORCE<small>員工調度與排班</small>
+            WORKFORCE<small>{t("login.tagline")}</small>
           </span>
         </div>
-        <nav aria-label="主要導覽">
+        <nav aria-label={t("nav.label")}>
           {nav.map(([key, label]) => (
             <button
               key={key}
@@ -1000,23 +1008,26 @@ export function App() {
         </nav>
         <div className="account">
           <strong>{user.name}</strong>
-          <small>{user.role === "admin" ? "管理員" : "Site Manager"}</small>
+          <small>{user.role === "admin" ? t("common.admin") : t("common.siteManager")}</small>
+          <LocaleSwitch />
           <button className="quiet" onClick={logout}>
-            登出
+            {t("nav.logout")}
           </button>
         </div>
       </aside>
       <main className="content">
         <div className="topbar">
-          <span>工作台</span>
-          <span aria-label="傳送模式">
+          <span>{t("nav.workspace")}</span>
+          <span aria-label={t("messaging.modeLabel")}>
             {messaging
-              ? `電話：${messaging.voice === "twilio" ? "Twilio PSTN 真實撥號" : "模擬"} · WhatsApp：${messaging.whatsapp === "service" ? "microservice 真實發送" : "模擬"}`
-              : "傳送模式未確認"}
+              ? t("messaging.summary", {
+                  voice: messaging.voice === "twilio" ? t("messaging.voiceReal") : t("messaging.voiceMock"),
+                  whatsapp: messaging.whatsapp === "service" ? t("messaging.whatsappReal") : t("messaging.whatsappMock"),
+                })
+              : t("messaging.unknown")}
           </span>
           <span>
-            {new Date().toLocaleDateString("zh-HK", {
-              timeZone: HONG_KONG_TIMEZONE,
+            {formatDate(new Date(), {
               year: "numeric",
               month: "long",
               day: "numeric",

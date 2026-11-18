@@ -501,14 +501,22 @@ export function createPstnAdapter({
                       "unavailable",
                     ),
               );
-          return res
-            .type("text/xml")
-            .send(
-              voiceMessage(
-                call.payload,
-                event.type === "no_input" ? "no_input" : "ack",
-              ),
-            );
+          if (event.type === "no_input")
+            return res.type("text/xml").send(voiceMessage(call.payload, "no_input"));
+          const result = (await pool.query(
+            `SELECT c.final_response, c.status
+             FROM message_events e JOIN candidates c ON c.id=$2
+             WHERE e.event_id=$1 AND e.correlation_id=$3 AND e.processed`,
+            [event.event_id, attempt.candidate_id, attempt.id],
+          )).rows[0];
+          const prompt = {
+            accepted: "confirmation",
+            declined: "declined_reply",
+            too_late: "unavailable",
+          }[result?.status];
+          return res.type("text/xml").send(
+            voiceMessage(call.payload, result?.final_response && prompt ? prompt : "reply_failed"),
+          );
         },
       );
   }

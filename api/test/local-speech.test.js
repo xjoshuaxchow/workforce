@@ -48,6 +48,8 @@ test('Local full-file hashes isolate providers and invalidate changed scripts/sp
   const offer=items[0];
   assert.match(offer.script,/同事/);assert.match(offer.script,/2099年11月10日/);assert.match(offer.script,/2099年11月11日/);
   assert.match(offer.script,/九龍灣/);assert.match(offer.script,/身份證/);
+  assert.match(offer.script, /\n\n\s*接受請按/);
+  assert.equal(content.defaultLocalSpeech().speed, 0.85);
   assert.notEqual(offer.hash,content.localSynthesisDescriptors({speed:0.9},'yue',site,request)[0].hash);
   assert.notEqual(offer.hash,content.localSynthesisDescriptors({speed:1},'yue',{...site,address:'另一地點'},request)[0].hash);
   assert.equal(items[3].hash,content.localSynthesisDescriptors({speed:1},'yue',site,{...request,id:'another'})[3].hash);

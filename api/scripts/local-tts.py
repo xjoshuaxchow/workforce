@@ -85,6 +85,13 @@ def speech_segments(script, language, lexicon):
         result.append(('yue', normalize_cantonese(text[at:], lexicon)))
     return [(lang, text.strip()) for lang, text in result if text.strip()]
 
+def prompt_segments(script, language, lexicon):
+    paragraphs = [part.strip() for part in re.split(r'\r?\n[ \t]*\r?\n', script) if part.strip()]
+    for index, paragraph in enumerate(paragraphs):
+        if index:
+            yield (None, '')
+        yield from speech_segments(paragraph, language, lexicon)
+
 def render_segments(segments, synthesize):
     import numpy as np
     chunks = []
@@ -92,7 +99,7 @@ def render_segments(segments, synthesize):
     frames = 0
     for language, text in segments:
         if all(c.isspace() or c in PUNCTUATION for c in text):
-            samples = np.zeros(int(TARGET_RATE * 0.12), dtype=np.float32)
+            samples = np.zeros(round(TARGET_RATE * (0.35 if language is None else 0.12)), dtype=np.float32)
         else:
             raw, rate = synthesize(language, text)
             samples = np.asarray(raw, dtype=np.float32).copy()
@@ -108,7 +115,7 @@ def render_segments(segments, synthesize):
             if fade:
                 samples[:fade] *= np.linspace(0, 1, fade)
                 samples[-fade:] *= np.linspace(1, 0, fade)
-        if previous is not None and previous != language:
+        if language is not None and previous is not None and previous != language:
             chunks.append(np.zeros(round(TARGET_RATE * 0.04), dtype=np.float32))
             frames += len(chunks[-1])
         chunks.append(samples)
@@ -159,7 +166,7 @@ def main():
         generation.speed = speed
         audio = engines[lang].generate(chunk, generation)
         return audio.samples, audio.sample_rate
-    samples = render_segments(speech_segments(text, language, lexicon), synthesize)
+    samples = render_segments(prompt_segments(text, language, lexicon), synthesize)
     if not len(samples) or not np.isfinite(samples).all() or np.max(np.abs(samples)) < 0.001:
         raise ValueError('Empty generated audio')
     # Bound input duration before allocating the encoded output.
