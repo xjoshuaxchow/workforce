@@ -1,4 +1,5 @@
 import express from "express";
+import { attachPilotStreams, pilotConfig } from "./elevenlabs-pilot.js";
 import { createPstnAdapter } from "./pstn-adapter.js";
 import { createWhatsAppAdapter } from "./whatsapp-adapter.js";
 import { sendMock } from "./messaging.js";
@@ -14,6 +15,8 @@ export function createChannelRuntime({
   clock = () => new Date(),
   pstnClientFactory,
   whatsappClientFactory,
+  elevenLabsPilot = pilotConfig(),
+  connectAgent,
 }) {
   const profiles = new Map();
   async function profile(id) {
@@ -50,6 +53,7 @@ export function createChannelRuntime({
               pool,
               clock,
               config: voice,
+              elevenLabsPilot,
               client: pstnClientFactory?.(voice),
             })
           : null,
@@ -184,5 +188,16 @@ export function createChannelRuntime({
       for (const plan of plans) await db.query("INSERT INTO request_voice_plans(request_id,language,settings_version_id,plan) VALUES($1,$2,$3,$4)", [request.id, plan.language, current.id, plan]);
     }
   }
-  return { status, pstn, whatsapp, validateDispatch };
+  const attachStreams = server => attachPilotStreams(server, {
+    config: elevenLabsPilot, connectAgent,
+    async authorize(id, signature, path) {
+      const row = (await pool.query(
+        "SELECT settings_version_id FROM voice_calls WHERE attempt_id=$1", [id],
+      )).rows[0];
+      if (!row) return null;
+      const pinned = await profile(row.settings_version_id);
+      return pinned.pstn?.authorizePilot(id, signature, path);
+    },
+  });
+  return { status, pstn, whatsapp, validateDispatch, elevenLabsPilot, attachStreams };
 }

@@ -1,3 +1,4 @@
+import { pilotAllowed } from "./elevenlabs-pilot.js";
 import { enqueueJob, queueAttempt } from "./outbox.js";
 export { enqueueJob, queueAttempt } from "./outbox.js";
 import { z } from "zod";
@@ -49,6 +50,12 @@ export async function eligible(db, request, staff) {
   return null;
 }
 export async function followup(db, clock, request, candidate, purpose, key) {
+  const pilot = await db.query(
+    "SELECT 1 FROM attempts WHERE candidate_id=$1 AND purpose='offer' AND payload->>'voice_mode'='elevenlabs-pilot'",
+    [candidate.id],
+  );
+  if (pilot.rowCount) return;
+
   const staff = (
     await db.query("SELECT * FROM staff WHERE id=$1", [candidate.staff_id])
   ).rows[0];
@@ -418,7 +425,7 @@ export async function detail(db, user, id) {
   const request = await requestAccess(db, user, id);
   const candidates = (
     await db.query(
-      "SELECT c.*,s.name,s.mobile FROM candidates c JOIN staff s ON s.id=c.staff_id WHERE request_id=$1 AND c.selected ORDER BY c.ctime,c.id",
+      "SELECT c.*,s.name,s.mobile,s.language,s.status AS staff_status FROM candidates c JOIN staff s ON s.id=c.staff_id WHERE request_id=$1 AND c.selected ORDER BY c.ctime,c.id",
       [id],
     )
   ).rows;
@@ -443,7 +450,7 @@ export async function detail(db, user, id) {
 }
 export function registerDispatch(
   app,
-  { pool, clock, validateChannels = null, prepareChannels = null },
+  { pool, clock, validateChannels = null, prepareChannels = null, elevenLabsPilot = null },
 ) {
   app.get("/api/requests", async (req, res) => {
     const { page, limit, offset } = pagination(req.query),
@@ -627,9 +634,15 @@ export function registerDispatch(
     });
     res.status(201).json(await detail(pool, req.user, request.id));
   });
-  app.get("/api/requests/:id", async (req, res) =>
-    res.json(await detail(pool, req.user, req.params.id)),
-  );
+  app.get("/api/requests/:id", async (req, res) => {
+    const draft = await detail(pool, req.user, req.params.id);
+    const staff = draft.candidates.map(candidate => ({ ...candidate, status: candidate.staff_status }));
+    res.json({
+      ...draft,
+      elevenlabs_pilot: req.user.role === "admin" && req.channelState?.voice === "twilio" &&
+        pilotAllowed(elevenLabsPilot, draft, staff),
+    });
+  });
   app.patch("/api/requests/:id", async (req, res) => {
     await requestAccess(pool, req.user, req.params.id);
     fail(
@@ -723,7 +736,11 @@ export function registerDispatch(
     res.json(await detail(pool, req.user, req.params.id));
   });
   app.post("/api/requests/:id/send", async (req, res) => {
-    if (prepareChannels) await prepareChannels(req.user, req.params.id);
+    const pilot = req.body?.voice_mode === "elevenlabs-pilot";
+    if (req.body?.voice_mode !== undefined && !pilot) validation("voice_mode", "Unknown telephone mode");
+    if (pilot && (req.user.role !== "admin" || req.channelState?.voice !== "twilio" || !elevenLabsPilot))
+      fail(403, "AI 電話測試尚未啟用，或你沒有操作權限。");
+    if (!pilot && prepareChannels) await prepareChannels(req.user, req.params.id);
     await mutate(pool, clock, async (db) => {
       const before = await requestAccess(
         db,
@@ -766,7 +783,11 @@ export function registerDispatch(
         )
       ).rows;
       if (!candidates.length) fail(409, "No candidates");
-      if (validateChannels) await validateChannels(db, before, candidates);
+      if (pilot) {
+        if (!pilotAllowed(elevenLabsPilot, before, candidates.map(candidate => candidate.staff)) ||
+            await eligible(db, before, candidates[0].staff))
+          fail(409, "AI 電話測試只限已設定的測試號碼及一份指定員工的純電話草稿。");
+      } else if (validateChannels) await validateChannels(db, before, candidates);
       const row = (
         await db.query(
           "UPDATE requests SET status='open' WHERE id=$1 RETURNING *",
@@ -820,6 +841,7 @@ export function registerDispatch(
             language: c.staff.language,
             channel,
             purpose: "offer",
+            ...(pilot ? { payload: { voice_mode: "elevenlabs-pilot" } } : {}),
             key: `candidate:${c.id}:${channel}:offer`,
           });
       }

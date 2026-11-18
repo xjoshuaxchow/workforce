@@ -273,6 +273,8 @@ async function setupRuntime(options = {}) {
     pool,
     settings,
     pstnClientFactory: () => ({ calls }),
+    elevenLabsPilot: options.elevenLabsPilot,
+    connectAgent: options.connectAgent,
   });
   await new Promise((r) => server.close(r));
   server = createApp({ pool, settings, runtime, pstn: runtime.pstn }).listen(
@@ -282,7 +284,7 @@ async function setupRuntime(options = {}) {
   await new Promise((r) => server.once("listening", r));
   base = "http://127.0.0.1:" + server.address().port;
 }
-async function voiceRequest(language = "en", channels = ["voice"]) {
+async function voiceRequest(language = "en", channels = ["voice"], mobile) {
   const code = "R" + Math.random().toString(36).slice(2, 9);
   const site = (
     await api("POST", "/api/sites", {
@@ -293,7 +295,7 @@ async function voiceRequest(language = "en", channels = ["voice"]) {
   ).body;
   const staffResponse = await api("POST", "/api/staff", {
     name: "Voice " + language,
-    mobile:
+    mobile: mobile ??
       "+659" + String(Math.floor(Math.random() * 10000000)).padStart(7, "0"),
     language,
     ...(channels.includes("whatsapp")
@@ -1703,3 +1705,148 @@ test('Roster vacancy warnings group the same Hong Kong date as displayed shifts'
  const view=await api('GET',`/api/sites/${request.site_id}/roster?from=2099-11-09T00:00:00Z&to=2099-11-12T00:00:00Z`);
  assert.equal(view.status,200);assert.equal(view.body.timezone,'Asia/Hong_Kong');assert.equal(view.body.days['2099-11-10'].open_shifts,1);assert.equal(view.body.days['2099-11-09'],undefined);
 });
+
+for (const [spoken, reply, expectedStatus, pause] of [
+  ["返到。", "accept", "accepted", 15000],
+  ["返唔到。", "decline", "declined", 0],
+]) {
+  const timing = pause ? " after the caller waits 15 seconds" : "";
+  test(`ElevenLabs pilot returns ${expectedStatus} to AMS${timing}`, { timeout: pause + 12000 }, async () => {
+    const { WebSocketServer, default: WebSocket } = await import("ws");
+    const { once } = await import("node:events");
+    const { setTimeout: delay } = await import("node:timers/promises");
+    const twilio = (await import("twilio")).default;
+    const mockAgent = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    await once(mockAgent, "listening");
+    let closeStreams;
+    const peers = new Set();
+    function nextMatching(socket, predicate) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => finish(new Error("Expected WebSocket event was not received")), 2400);
+        function onMessage(data) {
+          const message = JSON.parse(data.toString());
+          if (predicate(message)) finish(null, message);
+        }
+        function finish(error, message) {
+          clearTimeout(timer);
+          socket.off("message", onMessage);
+          if (error) reject(error);
+          else resolve(message);
+        }
+        socket.on("message", onMessage);
+      });
+    }
+    try {
+      const mockUrl = `ws://127.0.0.1:${mockAgent.address().port}`;
+      // Install the message listener during connection establishment.
+      let receiveInit;
+      const setupConversation = new Promise(resolve => {
+        mockAgent.on("connection", agent => {
+          peers.add(agent);
+          receiveInit = nextMatching(agent, event => event.type === "conversation_initiation_client_data");
+          resolve(agent);
+        });
+      });
+      const number = "+6591234567";
+      await setupRuntime({
+        elevenLabsPilot: { key: "local-fixture", to: number },
+        connectAgent: async () => mockUrl,
+      });
+      closeStreams = runtime.attachStreams(server);
+      await save({ voice: liveVoice });
+      await localMode();
+      const wrong = await voiceRequest("yue", ["voice"], "+6591234568");
+      assert.equal((await api("POST", `/api/requests/${wrong.request.id}/send`, { voice_mode: "elevenlabs-pilot" })).status, 409);
+      const { request, staff } = await voiceRequest("yue", ["voice"], number);
+      const path = `/api/requests/${request.id}`;
+      assert.equal((await api("GET", path)).body.elevenlabs_pilot, true);
+      const opened = await api("POST", path + "/send", { voice_mode: "elevenlabs-pilot" });
+      assert.equal(opened.status, 200, JSON.stringify(opened.body));
+      const { runJobs } = await import("../../src/messaging.js");
+      await runJobs(pool, () => new Date(), { pstn: runtime.pstn, whatsapp: runtime.whatsapp });
+      assert.equal(providerCalls.length, 1);
+      assert.equal(providerCalls[0].to, number);
+      assert.equal(providerCalls[0].timeLimit, 90);
+      const attempt = (await api("GET", path)).body.candidates[0].attempts[0];
+      const twiml = await signedVoice(attempt, staff, liveVoice.authToken);
+      assert.equal(twiml.status, 200);
+      assert.match(await twiml.text(), /<Connect><Stream url="wss:\/\/voice\.example\.test\/integrations\//);
+      const streamPath = `/integrations/twilio/voice/${attempt.id}/stream`;
+      const wsUrl = base.replace("http:", "ws:") + streamPath;
+      const unsigned = new WebSocket(wsUrl);
+      await once(unsigned, "close").catch(error => assert.match(error.message, /Unexpected server response: 401/));
+      const signature = twilio.getExpectedTwilioSignature(liveVoice.authToken,
+        liveVoice.publicBaseUrl.replace("https:", "wss:") + streamPath, {});
+      const phone = new WebSocket(wsUrl, { headers: { "x-twilio-signature": signature } });
+      peers.add(phone);
+      await once(phone, "open");
+      const streamSid = "MZ" + "1".repeat(32);
+      phone.send(JSON.stringify({ event: "start", start: { streamSid, callSid: attempt.external_id,
+        accountSid: liveVoice.accountSid, mediaFormat: { encoding: "audio/x-mulaw", sampleRate: 8000, channels: 1 } } }));
+      const agent = await setupConversation;
+      const initiation = await receiveInit;
+      assert.deepEqual(initiation.conversation_config_override, { agent: { language: "yue" } });
+      assert.match(initiation.dynamic_variables.shift_opening, /返唔返到/);
+      function emit(event) { agent.send(JSON.stringify(event)); }
+      emit({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: {
+        user_input_audio_format: "ulaw_8000", agent_output_audio_format: "ulaw_8000" } });
+      const player = nextMatching(phone, event => event.event === "media");
+      emit({ type: "audio", audio_event: { audio_base_64: "/w==" } });
+      assert.equal((await player).media.payload, "/w==");
+      emit({ type: "agent_response_complete" });
+      if (pause) {
+        const earlyClose = new AbortController();
+        const onClose = () => earlyClose.abort();
+        phone.once("close", onClose);
+        agent.once("close", onClose);
+        try {
+          await delay(pause, undefined, { signal: earlyClose.signal });
+        } finally {
+          phone.off("close", onClose);
+          agent.off("close", onClose);
+        }
+        assert.equal(phone.readyState, WebSocket.OPEN);
+        assert.equal(agent.readyState, WebSocket.OPEN);
+        const waiting = (await api("GET", path)).body;
+        assert.equal(waiting.status, "open");
+        assert.equal(waiting.accepted, 0);
+        assert.equal(waiting.candidates[0].final_response, null);
+      }
+      const microphone = nextMatching(agent, event => event.user_audio_chunk);
+      phone.send(JSON.stringify({ event: "media", streamSid, media: { payload: "/g==" } }));
+      assert.equal((await microphone).user_audio_chunk, "/g==");
+      async function decision(transcript, toolId) {
+        const result = nextMatching(agent, event => event.tool_call_id === toolId);
+        emit({ type: "user_transcript", user_transcription_event: { user_transcript: transcript } });
+        emit({ type: "client_tool_call", client_tool_call: {
+          tool_name: "record_shift_reply", tool_call_id: toolId, parameters: { reply } } });
+        return result;
+      }
+      assert.equal((await decision("我未確定", "ambiguous")).is_error, true);
+      assert.equal((await api("GET", path)).body.candidates[0].final_response, null);
+      const accepted = await decision(spoken, "decision");
+      assert.equal(accepted.is_error, false);
+      assert.equal(JSON.parse(accepted.result).status, expectedStatus);
+      assert.equal((await decision(spoken, "retry")).is_error, false);
+      const final = (await api("GET", path)).body;
+      assert.equal(final.candidates[0].status, expectedStatus);
+      assert.equal(final.candidates[0].final_response, reply);
+      assert.equal(final.candidates[0].attempts.length, 1);
+      assert.equal(final.candidates[0].attempts[0].status, "replied");
+      assert.equal(final.accepted, reply === "accept" ? 1 : 0);
+      if (reply === "accept") assert.equal(final.candidates[0].assignment?.status, "confirmed");
+      const finalAudio = nextMatching(phone, event => event.event === "media");
+      emit({ type: "audio", audio_event: { audio_base_64: "/g==" } });
+      assert.equal((await finalAudio).media.payload, "/g==");
+      const marker = nextMatching(phone, event => event.event === "mark");
+      emit({ type: "agent_response_complete" });
+      const completed = once(phone, "close");
+      phone.send(JSON.stringify(await marker));
+      await completed;
+    } finally {
+      closeStreams?.();
+      for (const socket of peers) socket.terminate();
+      await new Promise(resolve => mockAgent.close(resolve));
+    }
+  });
+}

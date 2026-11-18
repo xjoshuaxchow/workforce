@@ -138,7 +138,7 @@ export function createPstnGateway(config, client = createTwilioClient(config)) {
         statusCallbackMethod: "POST",
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
         timeout: 30,
-        timeLimit: 180,
+        timeLimit: payload.voice_mode === "elevenlabs-pilot" ? 90 : 180,
         record: false,
       });
     },

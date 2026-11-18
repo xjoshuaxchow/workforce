@@ -281,8 +281,15 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           </p>
         </div>
         <div className="actions">
+          {data.elevenlabs_pilot && (
+            <button disabled={busy} onClick={() => action(`/requests/${id}/send`, { voice_mode: "elevenlabs-pilot" })}>
+              {busy ? t("dispatch.pilotDialling") : t("dispatch.pilotCall")}
+            </button>
+          )}
           {data.status === "draft" && (
-            <button disabled={busy || voicePreparing} onClick={() => action(`/requests/${id}/send`)}>{busy || voicePreparing ? t("dispatch.preparingSend") : t("dispatch.send")}</button>
+            <button className={data.elevenlabs_pilot ? "quiet" : undefined} disabled={busy || voicePreparing} onClick={() => action(`/requests/${id}/send`)}>
+              {busy || voicePreparing ? t("dispatch.preparingSend") : t("dispatch.send")}
+            </button>
           )}
           {["draft", "open", "filled"].includes(data.status) && (
             <button className="quiet" onClick={() => setConfirm("cancel")}>
@@ -441,7 +448,12 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           </button>
         </section>
       )}
-      <RequestVoiceSpeech request={data} onPreparing={setVoicePreparing} />
+      {data.elevenlabs_pilot && <p className="muted">{t("dispatch.pilotHint")}</p>}
+      {data.candidates.some(candidate => candidate.attempts.some(attempt => attempt.payload?.voice_mode === "elevenlabs-pilot")) ? (
+        <p className="muted">{t("dispatch.pilotSent")}</p>
+      ) : (
+        <RequestVoiceSpeech request={data} onPreparing={setVoicePreparing} />
+      )}
       {data.excluded?.length > 0 && (
         <section className="panel exclusions">
           <h2>{t("dispatch.excluded")}</h2>

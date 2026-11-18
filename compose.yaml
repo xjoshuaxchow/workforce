@@ -4,6 +4,8 @@ x-workforce-env: &workforce-env
   DATABASE_URL: postgresql://workforce:${WORKFORCE_DB_PASSWORD:?Run python3 scripts/setup-deploy.py first}@workforce-db:5432/workforce
   WORKFORCE_SETTINGS_KEY: ${WORKFORCE_SETTINGS_KEY:?Missing settings encryption key}
   MESSAGING_SECRET: ${MESSAGING_SECRET:?Missing messaging secret}
+  WORKFORCE_ELEVENLABS_API_KEY: ${WORKFORCE_ELEVENLABS_API_KEY:-}
+  WORKFORCE_ELEVENLABS_TEST_NUMBER: ${WORKFORCE_ELEVENLABS_TEST_NUMBER:-}
   MESSAGING_MODE: mock
   WHATSAPP_MODE: mock
   AMS_ORIGIN: ${AMS_ORIGIN:-http://127.0.0.1:8320}

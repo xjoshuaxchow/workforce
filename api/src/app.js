@@ -611,6 +611,7 @@ export function createApp({
     clock,
     validateChannels: runtime?.validateDispatch,
     prepareChannels: runtime ? settings?.prepareVoice : null,
+    elevenLabsPilot: runtime?.elevenLabsPilot,
   });
   if (settings) settings.register(app);
   if (runtime)

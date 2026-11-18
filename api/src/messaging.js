@@ -420,7 +420,10 @@ export async function prepareAttempt(
     request ?? attempt.payload,
     voiceTexts,
   );
-  if (attempt.channel === "voice" && voiceClips && voiceClips.mode !== "say")
+  if (attempt.payload?.voice_mode === "elevenlabs-pilot") {
+    delete payload.voice;
+    payload.voice_mode = attempt.payload.voice_mode;
+  } else if (attempt.channel === "voice" && voiceClips && voiceClips.mode !== "say")
     payload.voice = await recordedVoice(db, { voiceClips, voice: { publicBaseUrl } }, attempt.purpose, attempt.language_snapshot ?? staff.language, site, request, settingsVersion);
   return { attempt, payload };
 }

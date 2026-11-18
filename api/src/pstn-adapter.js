@@ -2,7 +2,9 @@ import express from "express";
 import { z } from "zod";
 import { mutate, audit } from "./service.js";
 import { fail, validation } from "./domain.js";
-import { requestAccess } from "./dispatch.js";
+import twilio from "twilio";
+import { pilotTwiml } from "./elevenlabs-pilot.js";
+import { requestAccess, respond } from "./dispatch.js";
 import { prepareAttempt, receiveEvent } from "./messaging.js";
 import {
   createPstnGateway,
@@ -37,6 +39,7 @@ export function createPstnAdapter({
   pool,
   config,
   client,
+  elevenLabsPilot,
   clock = () => new Date(),
 }) {
   const gateway = createPstnGateway(config, client);
@@ -240,6 +243,10 @@ export function createPstnAdapter({
       }
       const ready = await prepareAttempt(db, clock, id, { voiceTexts: config.voiceTexts, voiceClips: config.voiceClips, publicBaseUrl: config.publicBaseUrl, settingsVersion: config.settingsVersion });
       if (!ready) return null;
+      if (ready.payload.voice_mode === "elevenlabs-pilot" && ready.payload.to !== elevenLabsPilot?.to) {
+        await changeAttempt(db, ready.attempt, "failed", "elevenlabs_pilot_number_changed");
+        return null;
+      }
       const inserted = await db.query(
         "INSERT INTO voice_calls(attempt_id,state,from_number,to_number,payload,submission_started_at,settings_version_id) VALUES($1,'submitting',$2,$3,$4,$5,$6) ON CONFLICT(attempt_id) DO UPDATE SET state='submitting',submission_started_at=$5,payload=$4,from_number=$2,to_number=$3,last_error=NULL WHERE voice_calls.state='reserved' RETURNING *",
         [
@@ -441,6 +448,13 @@ export function createPstnAdapter({
                   );
           }
           const { attempt, call } = bound;
+          if (call.payload.voice_mode === "elevenlabs-pilot" && kind !== "status") {
+            const canConnect = kind === "twiml" && call.to_number === elevenLabsPilot?.to &&
+              call.state === "submitted" && await available(attempt);
+            return res.type("text/xml").send(canConnect
+              ? pilotTwiml(config.publicBaseUrl, attempt.id)
+              : voiceMessage(null, "unavailable"));
+          }
           if (kind === "twiml")
             return res
               .type("text/xml")
@@ -520,5 +534,49 @@ export function createPstnAdapter({
         },
       );
   }
-  return { sendAttempt, reconcile, register };
+  async function authorizePilot(id, signature, path) {
+    if (!elevenLabsPilot || typeof signature !== "string") return null;
+    const url = new URL(path, config.publicBaseUrl);
+    const signed = ["wss:", "https:"].some(protocol => {
+      url.protocol = protocol;
+      return twilio.validateRequest(config.authToken, signature, url.href, {}) ||
+        twilio.validateRequest(config.authToken, signature, url.href + "/", {});
+    });
+    if (!signed) return null;
+    const call = (await pool.query("SELECT * FROM voice_calls WHERE attempt_id=$1", [id])).rows[0];
+    if (call?.state !== "submitted" || call.last_status !== "in-progress" ||
+        call.payload.voice_mode !== "elevenlabs-pilot" || call.to_number !== elevenLabsPilot.to) return null;
+    const attempt = (await pool.query("SELECT * FROM attempts WHERE id=$1", [id])).rows[0];
+    if (!attempt || attempt.response || !await available(attempt)) return null;
+
+    return {
+      accountSid: config.accountSid,
+      callSid: call.call_sid,
+      payload: call.payload,
+      async recordReply(reply) {
+        return mutate(pool, clock, async db => {
+          const locked = await lockCall(db, id);
+          if (!locked?.call || locked.call.call_sid !== call.call_sid ||
+              locked.call.payload.voice_mode !== "elevenlabs-pilot") return null;
+          const { attempt: current } = locked;
+          if (current.response) {
+            const candidate = (await db.query("SELECT status FROM candidates WHERE id=$1", [current.candidate_id])).rows[0];
+            return current.response === reply ? candidate?.status : null;
+          }
+          if (locked.call.state !== "submitted" || current.status === "cancelled" || current.status === "failed") return null;
+          const result = await respond(db, clock, { role: "admin", actor_type: "staff", id: current.staff_id },
+            current.candidate_id, reply);
+          if (result.ignored) return null;
+          const updated = (await db.query(
+            "UPDATE attempts SET status='replied',response=$2,response_at=$3 WHERE id=$1 RETURNING *",
+            [id, reply, clock()],
+          )).rows[0];
+          await audit(db, clock, { ...system, actor_type: "provider" }, "attempt.updated", "attempt", id,
+            current, updated, current.site_id, { source: "elevenlabs_voice" });
+          return result.candidate.status;
+        });
+      },
+    };
+  }
+  return { sendAttempt, reconcile, register, authorizePilot };
 }

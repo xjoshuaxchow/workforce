@@ -45,6 +45,7 @@ const server = createApp({
   origin: process.env.AMS_ORIGIN,
   pstn,
 }).listen(port, host);
+const closeStreams = runtime.attachStreams(server);
 server.once("listening", async () => {
   const state = await runtime.status();
   stopWorker = startWorker({ pool, pstn, whatsapp });
@@ -73,6 +74,7 @@ server.on("error", async (error) => {
 });
 for (const signal of ["SIGINT", "SIGTERM"])
   process.once(signal, () => {
+    closeStreams();
     server.close(async () => {
       await stopWorker();
       await pool.end();
