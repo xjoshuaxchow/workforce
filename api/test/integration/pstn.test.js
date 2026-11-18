@@ -133,13 +133,14 @@ async function api(method, path, body) {
   });
   return { status: r.status, body: await r.json() };
 }
-async function offer({ headcount = 1, direct = false } = {}) {
+async function offer({ headcount = 1, direct = false, deadline_at } = {}) {
   const created = await api("POST", "/api/requests", {
     site_id: site,
     mode: direct ? "direct" : "broadcast",
     staff_id: direct ? staff[0] : undefined,
     headcount,
     channels: ["voice"],
+    deadline_at,
     start_at: "2026-11-10T00:00:00Z",
     end_at: "2026-11-10T08:00:00Z",
   });
@@ -209,6 +210,64 @@ test("PSTN sends a durable voice offer once and repeated jobs do not create a se
     "1",
   );
 });
+test("Redial keeps the same request and preserves a missed call through concurrent retries", async () => {
+  await setup();
+  const request = await offer({ direct: true });
+  const candidate = request.candidates[0];
+  const first = candidate.attempts[0];
+  const path = `/api/requests/${request.id}/candidates/${candidate.id}/redial`;
+  const redial = (id = first.id) => api("POST", path, { attempt_id: id });
+
+  assert.equal((await redial()).status, 409);
+  await run();
+  assert.equal((await redial()).status, 409);
+  assert.equal((await callback(first, "status", { CallStatus: "no-answer" })).status, 200);
+  const missed = (await detail(request.id)).candidates[0];
+  assert.equal(missed.redial_attempt_id, first.id);
+
+  now = new Date(now.getTime() + 1000);
+  const results = await Promise.all([redial(), redial()]);
+  assert.ok(results.some(({ status }) => status === 200), JSON.stringify(results));
+  assert.ok(results.every(({ status }) => [200, 409].includes(status)));
+  const queued = (await detail(request.id)).candidates[0];
+  assert.equal(queued.redial_attempt_id, null);
+  assert.equal(queued.attempts.length, 2);
+  assert.deepEqual(queued.attempts[0], missed.attempts[0]);
+  const second = queued.attempts[1];
+  assert.equal(second.status, "queued");
+  assert.equal(second.settings_version_id, first.settings_version_id);
+
+  await run();
+  assert.equal(created.length, 2);
+  assert.equal(created[1].to, created[0].to);
+  assert.equal((await callback(second, "gather", { Digits: "1" })).status, 200);
+  const filled = await detail(request.id);
+  assert.equal(filled.accepted, 1);
+  assert.equal(filled.status, "filled");
+  assert.equal(filled.candidates[0].redial_attempt_id, null);
+  assert.equal((await redial(second.id)).status, 409);
+});
+
+test("Redial requires an ended call and an unexpired reply deadline", async () => {
+  await setup();
+  const request = await offer({ direct: true, deadline_at: "2026-11-03T01:00:00Z" });
+  const candidate = request.candidates[0];
+  const first = candidate.attempts[0];
+  const path = `/api/requests/${request.id}/candidates/${candidate.id}/redial`;
+  const redial = () => api("POST", path, { attempt_id: first.id });
+
+  await run();
+  assert.equal((await callback(first, "gather")).status, 200);
+  assert.equal((await redial()).status, 409);
+  assert.equal((await callback(first, "status", { CallStatus: "completed" })).status, 200);
+  assert.equal((await detail(request.id)).candidates[0].redial_attempt_id, first.id);
+
+  now = new Date(request.deadline_at);
+  assert.equal((await detail(request.id)).candidates[0].redial_attempt_id, null);
+  assert.equal((await redial()).status, 409);
+  assert.equal((await detail(request.id)).candidates[0].attempts.length, 1);
+});
+
 test("PSTN callbacks require Twilio signatures and repeat/invalid digits never allocate slots", async () => {
   await setup();
   const r = await offer({ direct: true }),

@@ -1,7 +1,7 @@
 import { RequestVoiceSpeech } from "./ChannelSettingsPage.jsx";
 import React, { useEffect, useState } from "react";
 import { api, loadAllPages } from "./api.js";
-import { hasMessage, t } from "./i18n.js";
+import { formatDate, hasMessage, t } from "./i18n.js";
 import { useI18n } from "./i18n.jsx";
 import {
   Field,
@@ -209,6 +209,37 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     </Modal>
   );
 }
+function VoiceAttempts({ attempts, zone }) {
+  const calls = attempts.filter((attempt) => attempt.channel === "voice" && attempt.purpose === "offer");
+  const latest = calls.at(-1);
+  return (
+    <>
+      {statusText(latest?.status)}
+      {latest?.response_at && (
+        <small>
+          <time aria-label={t("dispatch.voiceReply")} dateTime={latest.response_at}>
+            {t("dispatch.repliedAt", { time: fmt(latest.response_at, zone) })}
+          </time>
+        </small>
+      )}
+      {calls.length > 1 && (
+        <details className="voice-history">
+          <summary>{t("dispatch.callHistory", { count: calls.length })}</summary>
+          <ol>
+            {calls.slice().reverse().map((call) => (
+              <li key={call.id}>
+                <time dateTime={call.ctime}>
+                  {formatDate(call.ctime, { dateStyle: "short", timeStyle: "medium", timeZone: zone })}
+                </time>
+                {" · "}{statusText(call.status)}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </>
+  );
+}
 function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
   useI18n();
   const [data, setData] = useState(null),
@@ -252,6 +283,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
       setToAdd("");
       setConfirm(null);
     } catch (e) {
+      if (e.reason === "redial_unavailable") await load();
       setError(e);
     } finally {
       setBusy(false);
@@ -266,6 +298,16 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
     );
   const site = sites.find((s) => s.id === data.site_id),
     zone = HONG_KONG_TIMEZONE;
+  const redialCandidate = confirm?.kind === "redial" ? confirm.candidate : null;
+  const redialStillAvailable = redialCandidate && data.candidates.some((candidate) =>
+    candidate.id === redialCandidate.id &&
+    candidate.mobile === redialCandidate.mobile &&
+    candidate.redial_attempt_id === redialCandidate.redial_attempt_id,
+  );
+  const closeRedial = () => {
+    setConfirm(null);
+    setError(null);
+  };
   return (
     <>
       <button className="text-button" onClick={onBack}>
@@ -298,7 +340,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           )}
         </div>
       </div>
-      <ErrorNotice error={error} />
+      <ErrorNotice error={redialCandidate ? null : error} />
       <div className="dispatch-summary">
         <section className="panel metric">
           <p>{t("dispatch.acceptedCount")}</p>
@@ -351,6 +393,8 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                     {c.reason && <small>{c.reason}</small>}
                   </td>
                   {["whatsapp", "voice"].map((channel) => {
+                    if (channel === "voice")
+                      return <td key={channel}><VoiceAttempts attempts={c.attempts} zone={zone} /></td>;
                     const attempt = c.attempts.find(
                       (a) => a.channel === channel && a.purpose === "offer",
                     );
@@ -360,11 +404,7 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                         {attempt?.response_at && (
                           <small>
                             <time
-                              aria-label={
-                                channel === "whatsapp"
-                                  ? t("dispatch.whatsappReply")
-                                  : t("dispatch.voiceReply")
-                              }
+                              aria-label={t("dispatch.whatsappReply")}
                               dateTime={attempt.response_at}
                             >
                               {t("dispatch.repliedAt", { time: fmt(attempt.response_at, zone) })}
@@ -389,6 +429,18 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
                         }
                       >
                         {t("dispatch.removeCandidate")}
+                      </button>
+                    )}
+                    {c.redial_attempt_id && (
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => {
+                          setError(null);
+                          setConfirm({ candidate: c, kind: "redial" });
+                        }}
+                      >
+                        {t("dispatch.redial")}
                       </button>
                     )}
                     {c.status === "contacting" && data.status === "open" && (
@@ -516,7 +568,27 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           ))}
         </details>
       )}
-      {confirm && (
+      {redialCandidate && (
+        <Modal title={t("dispatch.redial")} onClose={closeRedial}>
+          <p>{t("dispatch.redialBody", { name: redialCandidate.name, number: redialCandidate.mobile })}</p>
+          <ErrorNotice error={error?.reason === "redial_unavailable" || (!busy && !redialStillAvailable)
+            ? { message: t("dispatch.redialUnavailable") }
+            : error} />
+          <div className="form-actions">
+            <button className="quiet" onClick={closeRedial}>{t("common.back")}</button>
+            <button
+              disabled={busy || !redialStillAvailable}
+              onClick={() => action(
+                `/requests/${id}/candidates/${redialCandidate.id}/redial`,
+                { attempt_id: redialCandidate.redial_attempt_id },
+              )}
+            >
+              {t("dispatch.redial")}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {confirm && !redialCandidate && (
         <Modal
           title={
             confirm === "send"

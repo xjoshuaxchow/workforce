@@ -421,7 +421,29 @@ async function cancelAssignment(db, clock, user, request, assignment) {
     `assignment:${assignment.id}:cancellation`,
   );
 }
-export async function detail(db, user, id) {
+const redialStatuses = new Set(["no_answer", "busy", "no_input"]);
+
+function canRedial(request, candidate, staff, attempt, { clock, user, voice, elevenLabsPilot }) {
+  if (
+    request.status !== "open" ||
+    new Date(request.deadline_at) <= clock() ||
+    new Date(request.start_at) <= clock() ||
+    candidate.status !== "contacting" ||
+    candidate.final_response ||
+    staff.status !== "active" ||
+    !contactable(staff).includes("voice") ||
+    !attempt ||
+    !redialStatuses.has(attempt.status) ||
+    attempt.response ||
+    (attempt.call_state !== null && attempt.call_state !== "finished") ||
+    voice !== (attempt.call_state === null ? "mock" : "twilio")
+  ) return false;
+
+  return attempt.payload?.voice_mode !== "elevenlabs-pilot" ||
+    (user.role === "admin" && pilotAllowed(elevenLabsPilot, request, [staff], "open"));
+}
+
+export async function detail(db, user, id, redialContext) {
   const request = await requestAccess(db, user, id);
   const candidates = (
     await db.query(
@@ -431,7 +453,9 @@ export async function detail(db, user, id) {
   ).rows;
   const attempts = (
     await db.query(
-      "SELECT * FROM attempts WHERE request_id=$1 ORDER BY ctime,id",
+      `SELECT a.*, v.state AS call_state FROM attempts a
+       LEFT JOIN voice_calls v ON v.attempt_id=a.id
+       WHERE a.request_id=$1 ORDER BY a.ctime,a.id`,
       [id],
     )
   ).rows;
@@ -441,17 +465,30 @@ export async function detail(db, user, id) {
   return {
     ...request,
     accepted: assignments.filter((x) => x.status === "confirmed").length,
-    candidates: candidates.map((c) => ({
-      ...c,
-      attempts: attempts.filter((x) => x.candidate_id === c.id),
-      assignment: assignments.find((x) => x.candidate_id === c.id) ?? null,
-    })),
+    candidates: candidates.map((c) => {
+      const history = attempts.filter((attempt) => attempt.candidate_id === c.id);
+      const latest = history.findLast((attempt) =>
+        attempt.channel === "voice" && attempt.purpose === "offer");
+      const staff = { ...c, status: c.staff_status };
+      return {
+        ...c,
+        attempts: history.map(({ call_state, ...attempt }) => attempt),
+        redial_attempt_id: redialContext && canRedial(request, c, staff, latest, redialContext)
+          ? latest.id
+          : null,
+        assignment: assignments.find((x) => x.candidate_id === c.id) ?? null,
+      };
+    }),
   };
 }
 export function registerDispatch(
   app,
   { pool, clock, validateChannels = null, prepareChannels = null, elevenLabsPilot = null },
 ) {
+  const redialContext = (req) => ({
+    clock, user: req.user, voice: req.channelState.voice, elevenLabsPilot,
+  });
+
   app.get("/api/requests", async (req, res) => {
     const { page, limit, offset } = pagination(req.query),
       values = [req.user.role, req.user.id];
@@ -635,7 +672,7 @@ export function registerDispatch(
     res.status(201).json(await detail(pool, req.user, request.id));
   });
   app.get("/api/requests/:id", async (req, res) => {
-    const draft = await detail(pool, req.user, req.params.id);
+    const draft = await detail(pool, req.user, req.params.id, redialContext(req));
     const staff = draft.candidates.map(candidate => ({ ...candidate, status: candidate.staff_status }));
     res.json({
       ...draft,
@@ -855,6 +892,56 @@ export function registerDispatch(
       );
     });
     res.json(await detail(pool, req.user, req.params.id));
+  });
+  app.post("/api/requests/:id/candidates/:candidateId/redial", async (req, res) => {
+    const attemptId = req.body?.attempt_id;
+    if (!z.string().uuid().safeParse(attemptId).success)
+      validation("attempt_id", "Select a previous call");
+    const context = redialContext(req);
+    await mutate(pool, clock, async (db) => {
+      const request = await requestAccess(db, req.user, req.params.id, 403, true);
+      const candidate = (
+        await db.query(
+          `SELECT c.*, to_jsonb(s) AS staff FROM candidates c
+           JOIN staff s ON s.id=c.staff_id
+           WHERE c.request_id=$1 AND c.id=$2 AND c.selected`,
+          [request.id, req.params.candidateId],
+        )
+      ).rows[0];
+      if (!candidate) fail(404, "Candidate not found");
+      const attempt = (
+        await db.query(
+          `SELECT a.*, v.state AS call_state FROM attempts a
+           LEFT JOIN voice_calls v ON v.attempt_id=a.id
+           WHERE a.candidate_id=$1 AND a.channel='voice' AND a.purpose='offer'
+           ORDER BY a.ctime DESC,a.id DESC LIMIT 1`,
+          [candidate.id],
+        )
+      ).rows[0];
+      if (attempt?.id !== attemptId || !canRedial(request, candidate, candidate.staff, attempt, context))
+        fail(409, "This call cannot be redialed. Refresh the work request and check the latest status.", { reason: "redial_unavailable" });
+      const site = await siteAccess(db, req.user, request.site_id, 403, true);
+      if (site.status !== "active" || await eligible(db, request, candidate.staff))
+        fail(409, "This employee is no longer eligible for the shift.", { reason: "redial_unavailable" });
+
+      const key = `redial:${attempt.id}`;
+      const redial = await queueAttempt(db, clock, {
+        candidateId: candidate.id,
+        requestId: request.id,
+        siteId: request.site_id,
+        staffId: candidate.staff_id,
+        channel: "voice",
+        purpose: "offer",
+        key,
+        ...(attempt.payload?.voice_mode === "elevenlabs-pilot"
+          ? { payload: { voice_mode: "elevenlabs-pilot" } }
+          : {}),
+      });
+      if (!redial) fail(409, "A redial was already queued for this call.", { reason: "redial_unavailable" });
+      await audit(db, clock, req.user, "attempt.redialed", "attempt", redial.id,
+        null, redial, request.site_id, { previous_attempt_id: attempt.id });
+    });
+    res.json(await detail(pool, req.user, req.params.id, context));
   });
   app.post("/api/requests/:id/cancel", async (req, res) => {
     await mutate(pool, clock, async (db) => {

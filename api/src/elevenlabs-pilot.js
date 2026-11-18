@@ -11,9 +11,9 @@ export function pilotConfig(env = process.env) {
   return key && /^\+[1-9]\d{7,14}$/.test(to ?? "") ? { key, to } : null;
 }
 
-export function pilotAllowed(config, draft, staff) {
-  return Boolean(config && draft.status === "draft" && draft.mode === "direct" &&
-    draft.headcount === 1 && draft.channels.length === 1 && draft.channels[0] === "voice" &&
+export function pilotAllowed(config, request, staff, status = "draft") {
+  return Boolean(config && request.status === status && request.mode === "direct" &&
+    request.headcount === 1 && request.channels.length === 1 && request.channels[0] === "voice" &&
     staff.length === 1 && staff[0].mobile === config.to && staff[0].status === "active" &&
     ["yue", "en"].includes(staff[0].language));
 }

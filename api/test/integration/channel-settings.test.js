@@ -1013,15 +1013,15 @@ async function recordedRequest({
     });
   return { ...data, config: current.config };
 }
-async function signedVoice(attempt, staff, authToken, Digits) {
+async function signedVoice(attempt, staff, authToken, Digits, status) {
   const twilio = (await import("twilio")).default,
-    path = `/integrations/twilio/voice/${attempt.id}/${Digits === undefined ? "twiml" : "gather"}`,
+    path = `/integrations/twilio/voice/${attempt.id}/${status ? "status" : Digits === undefined ? "twiml" : "gather"}`,
     body = {
       AccountSid: liveVoice.accountSid,
       CallSid: attempt.external_id,
       From: liveVoice.fromNumber,
       To: staff.mobile,
-      CallStatus: "in-progress",
+      CallStatus: status ?? "in-progress",
       ...(Digits === undefined ? {} : { Digits }),
     };
   return fetch(base + path, {
@@ -1767,7 +1767,24 @@ for (const [spoken, reply, expectedStatus, pause] of [
       assert.equal(providerCalls.length, 1);
       assert.equal(providerCalls[0].to, number);
       assert.equal(providerCalls[0].timeLimit, 90);
-      const attempt = (await api("GET", path)).body.candidates[0].attempts[0];
+      let candidate = (await api("GET", path)).body.candidates[0];
+      const firstAttempt = candidate.attempts[0];
+      if (pause) {
+        const ended = await signedVoice(firstAttempt, staff, liveVoice.authToken, undefined, "completed");
+        assert.equal(ended.status, 200);
+        candidate = (await api("GET", path)).body.candidates[0];
+        assert.equal(candidate.redial_attempt_id, firstAttempt.id);
+        const retried = await api("POST", path + `/candidates/${candidate.id}/redial`, { attempt_id: firstAttempt.id });
+        assert.equal(retried.status, 200, JSON.stringify(retried.body));
+        await runJobs(pool, () => new Date(), { pstn: runtime.pstn, whatsapp: runtime.whatsapp });
+        assert.equal(providerCalls.length, 2);
+        assert.equal(providerCalls[1].to, number);
+        assert.equal(providerCalls[1].timeLimit, 90);
+        candidate = (await api("GET", path)).body.candidates[0];
+      }
+      const attempt = candidate.attempts.at(-1);
+      assert.equal(attempt.payload.voice_mode, "elevenlabs-pilot");
+      assert.equal(attempt.settings_version_id, firstAttempt.settings_version_id);
       const twiml = await signedVoice(attempt, staff, liveVoice.authToken);
       assert.equal(twiml.status, 200);
       assert.match(await twiml.text(), /<Connect><Stream url="wss:\/\/voice\.example\.test\/integrations\//);
@@ -1831,8 +1848,10 @@ for (const [spoken, reply, expectedStatus, pause] of [
       const final = (await api("GET", path)).body;
       assert.equal(final.candidates[0].status, expectedStatus);
       assert.equal(final.candidates[0].final_response, reply);
-      assert.equal(final.candidates[0].attempts.length, 1);
-      assert.equal(final.candidates[0].attempts[0].status, "replied");
+      assert.equal(final.candidates[0].attempts.length, pause ? 2 : 1);
+      if (pause) assert.equal(final.candidates[0].attempts[0].status, "no_input");
+      assert.equal(final.candidates[0].attempts.at(-1).status, "replied");
+      assert.equal(final.candidates[0].redial_attempt_id, null);
       assert.equal(final.accepted, reply === "accept" ? 1 : 0);
       if (reply === "accept") assert.equal(final.candidates[0].assignment?.status, "confirmed");
       const finalAudio = nextMatching(phone, event => event.event === "media");
