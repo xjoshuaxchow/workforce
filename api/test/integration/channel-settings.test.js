@@ -1707,8 +1707,8 @@ test('Roster vacancy warnings group the same Hong Kong date as displayed shifts'
 });
 
 for (const [spoken, reply, expectedStatus, pause] of [
-  ["返到。", "accept", "accepted", 15000],
-  ["返唔到。", "decline", "declined", 0],
+  ["'翻到'", "accept", "accepted", 15000],
+  ["「翻唔到」", "decline", "declined", 0],
 ]) {
   const timing = pause ? " after the caller waits 15 seconds" : "";
   test(`ElevenLabs pilot returns ${expectedStatus} to AMS${timing}`, { timeout: pause + 12000 }, async () => {
@@ -1786,7 +1786,7 @@ for (const [spoken, reply, expectedStatus, pause] of [
       const agent = await setupConversation;
       const initiation = await receiveInit;
       assert.deepEqual(initiation.conversation_config_override, { agent: { language: "yue" } });
-      assert.match(initiation.dynamic_variables.shift_opening, /返唔返到/);
+      assert.match(initiation.dynamic_variables.shift_opening, /翻唔翻到/);
       function emit(event) { agent.send(JSON.stringify(event)); }
       emit({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: {
         user_input_audio_format: "ulaw_8000", agent_output_audio_format: "ulaw_8000" } });

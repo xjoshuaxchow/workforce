@@ -18,15 +18,17 @@ export function pilotAllowed(config, draft, staff) {
     ["yue", "en"].includes(staff[0].language));
 }
 
-const accepts = new Set(["返到", "我返到", "可以返", "我可以返", "我會返", "可以返工", "我可以返工",
+const accepts = new Set(["翻到", "我翻到", "我係翻到", "返到", "我返到", "我係返到", "可以返", "我可以返", "我會返", "可以返工", "我可以返工",
   "yes", "yes i can", "yes i can work", "i can work", "i accept"]);
-const declines = new Set(["返唔到", "我返唔到", "唔返", "我唔返", "唔可以返", "我唔可以返", "唔返工", "我唔返工",
+const declines = new Set(["翻唔到", "我翻唔到", "我係翻唔到", "返唔到", "我返唔到", "我係返唔到", "唔返", "我唔返", "唔可以返", "我唔可以返", "唔返工", "我唔返工",
   "no", "no i can't", "no i can't work", "i can't work", "i cannot work", "i decline"]);
 
 export function spokenDecision(text) {
   if (typeof text !== "string" || /[?？]/u.test(text)) return null;
   const normalized = text.normalize("NFKC").toLowerCase().replaceAll("’", "'")
-    .replace(/[。！!.,，]/gu, " ").trim().replace(/\s+/gu, " ");
+    .replace(/[。！!.,，]/gu, " ")
+    .replace(/^[\s"'“”‘’「」『』]+|[\s"'“”‘’「」『』]+$/gu, "")
+    .replace(/\s+/gu, " ");
   if (accepts.has(normalized)) return "accept";
   if (declines.has(normalized)) return "decline";
   return null;
@@ -37,7 +39,7 @@ export function agentInitiation(payload) {
   const language = payload.language === "yue" ? "yue" : "en";
   const site = [site_name, site_address].filter(Boolean).join(", ");
   const opening = language === "yue"
-    ? `你好，我係 Workforce 嘅 AI 語音助手。有一個工作邀請，地點係 ${site}，香港時間 ${date}，由 ${start_time} 到 ${end_time}。${message ? message + "。" : ""}呢個更你返唔返到？請講「返到」或者「返唔到」。`
+    ? `你好，我係 Workforce 嘅 AI 語音助手。你有一個工作邀請。地點係 ${site}。日期係 ${date}。香港時間由 ${start_time} 到 ${end_time}。${message ? message + "。" : ""}請問你翻唔翻到呢一更？請講「翻到」或者「翻唔到」。`
     : `Hello, I am the Workforce AI voice assistant. Your shift offer is at ${site} on ${date}, from ${start_time} to ${end_time} Hong Kong time.${message ? " " + message + "." : ""} Please say "I can work" or "I can't work".`;
   return {
     type: "conversation_initiation_client_data",
@@ -134,7 +136,7 @@ function relay(twilioSocket, session, config, connectAgent) {
         const reply = tool.parameters?.reply;
         if (!["accept", "decline"].includes(reply) || speech !== reply || writing) {
           send(agent, { type: "client_tool_result", tool_call_id: tool.tool_call_id, is_error: true,
-            result: "No clear matching reply. Ask the person to say exactly 返到 or 返唔到 (English: I can work / I can't work). Do not say it was recorded." });
+            result: "No clear matching reply. Ask the person to say exactly 翻到 or 翻唔到 (English: I can work / I can't work). Do not say it was recorded." });
           return;
         }
         writing = true;

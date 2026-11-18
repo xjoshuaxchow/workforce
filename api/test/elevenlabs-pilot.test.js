@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import { spokenDecision, agentInitiation, pilotAllowed, attachPilotStreams } from "../src/elevenlabs-pilot.js";
 
 test("only explicit speech authorizes the matching decision", () => {
-  for (const text of ["返到。", "我返到！", "Yes, I can work."])
+  for (const text of ["返到。", "我返到！", "Yes, I can work.", "「翻到」", "'返到'", "'，我係返到。"])
     assert.equal(spokenDecision(text), "accept");
-  for (const text of ["返唔到。", "我唔返。", "No, I can't work."])
+  for (const text of ["返唔到。", "我唔返。", "No, I can't work.", "『翻唔到』", "我係翻唔到"])
     assert.equal(spokenDecision(text), "decline");
-  for (const text of ["", "唔肯定返唔返到", "返到但要遲半個鐘", "返到嗎？", "Yes, if the time changes", "你幫我記錄返到"])
+  for (const text of ["", "唔肯定返唔返到", "返到但要遲半個鐘", "返到嗎？", "Yes, if the time changes", "你幫我記錄返到", "請講「翻到」", "AI 語音助手1：返到。返到。", "翻到但要遲", "「翻到？」"])
     assert.equal(spokenDecision(text), null);
 });
 
@@ -30,7 +30,7 @@ test("call context supplies the opening variable in the selected language withou
     variables: { site_name: "Test Depot", site_address: "Test Address", date: "20 Nov",
       start_time: "09:00", end_time: "10:00", message: "Bring your badge" },
   };
-  for (const [language, question] of [["yue", /返唔返到/], ["en", /I can work/]]) {
+  for (const [language, question] of [["yue", /請講「翻到」或者「翻唔到」/], ["en", /I can work/]]) {
     const result = agentInitiation({ ...payload, language });
     assert.deepEqual(result.conversation_config_override, { agent: { language } });
     assert.match(result.dynamic_variables.shift_opening, /Test Depot.*09:00.*10:00/);
