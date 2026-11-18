@@ -205,3 +205,47 @@ test("G-08 site and staff pickers can search and select records beyond the first
     fullPage: true,
   });
 });
+
+test("Duplicate a past work request with new times and no reused roster vacancy", async ({ page }) => {
+  await login(page);
+  const { site } = await fixture(page, "COPY-ROSTER", "Copy Roster Anna", "+6592345678");
+  const start = new Date(Date.now() + 86400000);
+  const end = new Date(+start + 3600000);
+  const range = { start_at: start.toISOString(), end_at: end.toISOString() };
+  const vacancy = await create(page, "/shifts", { site_id: site.id, ...range });
+  const original = await create(page, "/requests", {
+    site_id: site.id,
+    mode: "broadcast",
+    headcount: 1,
+    channels: ["voice"],
+    open_shift_ids: [vacancy.id],
+    ...range,
+  });
+  await create(page, `/requests/${original.id}/cancel`, {});
+  await page.clock.setFixedTime(end);
+
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
+  await page.getByRole("button", { name: "查看詳情" }).click();
+  await page.getByRole("button", { name: "複製工單" }).click();
+  const dialog = page.getByRole("dialog", { name: "複製工單" });
+  const startField = dialog.getByLabel("開始時間", { exact: true });
+  const endField = dialog.getByLabel("結束時間", { exact: true });
+  await expect(startField).toHaveValue("");
+  await expect(endField).toHaveValue("");
+  await expect(dialog.getByLabel("回覆截止時間", { exact: true })).toHaveValue("");
+
+  const { utcToLocal } = await import("../src/time.js");
+  await startField.fill(utcToLocal(new Date(+start + 86400000).toISOString()));
+  await endField.fill(utcToLocal(new Date(+end + 86400000).toISOString()));
+  const saved = page.waitForResponse(response =>
+    new URL(response.url()).pathname === "/api/requests" && response.request().method() === "POST");
+  await dialog.getByRole("button", { name: "建立草稿", exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(201);
+  const copy = await response.json();
+  expect(copy.id).not.toBe(original.id);
+  expect(copy.site_id).toBe(site.id);
+  expect(copy.status).toBe("draft");
+  expect(copy.open_shift_ids).toEqual([]);
+  expect(copy.candidates[0].attempts).toEqual([]);
+});

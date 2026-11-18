@@ -211,3 +211,66 @@ test("Editing a sent request and extending the deadline keep its call history", 
   expect(updated.candidates[0].final_response).toBe("decline");
   expect(updated.candidates[0].attempts.map((call) => call.id)).toEqual([attempt.id, second.id]);
 });
+
+test("Duplicate a sent work request into a fresh draft with the same shift details", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("電郵").fill("ui-admin@test.local");
+  await page.getByLabel("密碼", { exact: true }).fill("Local-test-password-123");
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "員工管理" })).toBeVisible();
+
+  const post = async (path, data = {}) => {
+    const response = await page.request.post("/api" + path, { data });
+    expect(response.ok()).toBe(true);
+    return response.json();
+  };
+  const site = await post("/sites", { code: "COPY-REQUEST", name: "Copy Request Site" });
+  const staff = await post("/staff", { name: "Copy Request Anna", mobile: "+6598765433" });
+  await post(`/sites/${site.id}/staff`, { staff_ids: [staff.id] });
+  const start = new Date(Date.now() + 86400000);
+  start.setUTCSeconds(35, 0);
+  const source = await post("/requests", {
+    site_id: site.id, mode: "direct", staff_id: staff.id, headcount: 1,
+    channels: ["voice"], message: "Use the north entrance",
+    start_at: start.toISOString(),
+    end_at: new Date(+start + 3600000).toISOString(),
+    deadline_at: new Date(+start - 3600000).toISOString(),
+  });
+  const sourcePath = `/requests/${source.id}`;
+  const sent = await post(sourcePath + "/send");
+  const attempt = sent.candidates[0].attempts[0];
+  await post(`/mock/attempts/${attempt.id}/events`, { type: "reply", option_id: "DECLINE" });
+
+  await page.getByRole("button", { name: "派更工作台", exact: true }).click();
+  await page.getByRole("button", { name: "查看詳情" }).click();
+  await page.getByRole("button", { name: "複製工單" }).click();
+  const dialog = page.getByRole("dialog", { name: "複製工單" });
+  await expect(dialog.getByLabel("工作地點", { exact: true })).toHaveValue(site.id);
+  await expect(dialog.getByLabel("補充說明")).toHaveValue("Use the north entrance");
+  await expect(dialog.getByLabel("WhatsApp", { exact: true })).not.toBeChecked();
+  await expect(dialog.getByLabel("電話", { exact: true })).toBeChecked();
+
+  const saved = page.waitForResponse(response =>
+    new URL(response.url()).pathname === "/api/requests" && response.request().method() === "POST");
+  await dialog.getByRole("button", { name: "建立草稿", exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(201);
+  const copy = await response.json();
+  expect(copy.id).not.toBe(source.id);
+  expect(copy.status).toBe("draft");
+  expect(copy.mode).toBe("direct");
+  expect(copy.site_id).toBe(site.id);
+  expect(copy.start_at).toBe(source.start_at);
+  expect(copy.end_at).toBe(source.end_at);
+  expect(copy.deadline_at).toBe(source.deadline_at);
+  expect(copy.message).toBe(source.message);
+  expect(copy.channels).toEqual(["voice"]);
+  expect(copy.candidates[0].staff_id).toBe(staff.id);
+  expect(copy.candidates[0].final_response).toBeNull();
+  expect(copy.candidates[0].attempts).toEqual([]);
+  await expect(page.getByRole("button", { name: "發送邀請" })).toBeVisible();
+
+  const original = await (await page.request.get("/api" + sourcePath)).json();
+  expect(original.candidates[0].final_response).toBe("decline");
+  expect(original.candidates[0].attempts[0].id).toBe(attempt.id);
+});

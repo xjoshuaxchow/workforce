@@ -19,25 +19,34 @@ const statusText = (code) => {
   return hasMessage(key) ? t(key) : code;
 };
 const fmt = (value, zone) => utcToLocal(value, zone).replace("T", " ");
-export function RequestForm({ sites, preset, onClose, onDone }) {
+export function RequestForm({ sites, preset, copyFrom, onClose, onDone }) {
   useI18n();
-  const [value, setValue] = useState({
-      site_id:
-        preset?.site_id ?? sites.find((s) => s.status === "active")?.id ?? "",
-      mode: preset?.mode ?? "broadcast",
-      staff_id: preset?.staff_id ?? "",
-      headcount: preset?.open_shift_ids?.length ?? 1,
-      voice: true,
-      whatsapp: true,
-      message: "",
-      start: "",
-      end: "",
-      deadline: "",
-    }),
+  const zone = HONG_KONG_TIMEZONE;
+  const [value, setValue] = useState(() => {
+    const now = Date.now();
+    const copyTimes = copyFrom && Date.parse(copyFrom.start_at) > now;
+    const copySite = copyFrom && sites.some((site) => site.id === copyFrom.site_id && site.status === "active");
+    return {
+      site_id: copyFrom
+        ? (copySite ? copyFrom.site_id : "")
+        : (preset?.site_id ?? sites.find((site) => site.status === "active")?.id ?? ""),
+      mode: copyFrom?.mode ?? preset?.mode ?? "broadcast",
+      staff_id: copySite && copyFrom.mode === "direct"
+        ? copyFrom.candidates[0]?.staff_id ?? ""
+        : preset?.staff_id ?? "",
+      headcount: copyFrom?.headcount ?? preset?.open_shift_ids?.length ?? 1,
+      voice: copyFrom ? copyFrom.channels.includes("voice") : true,
+      whatsapp: copyFrom ? copyFrom.channels.includes("whatsapp") : true,
+      message: copyFrom?.message ?? "",
+      start: copyTimes ? utcToLocal(copyFrom.start_at, zone) : "",
+      end: copyTimes ? utcToLocal(copyFrom.end_at, zone) : "",
+      deadline: copyTimes && Date.parse(copyFrom.deadline_at) > now
+        ? utcToLocal(copyFrom.deadline_at, zone)
+        : "",
+    };
+  }),
     [error, setError] = useState(null),
     [busy, setBusy] = useState(false);
-  const site = sites.find((s) => s.id === value.site_id),
-    zone = HONG_KONG_TIMEZONE;
   useEffect(() => {
     if (preset?.start_at)
       setValue((x) => ({
@@ -51,7 +60,11 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     data: staff,
     error: staffError,
     loading: staffLoading,
-  } = useAllList(`/sites/${value.site_id || "none"}/staff`);
+  } = useAllList(value.site_id ? `/sites/${value.site_id}/staff` : null);
+  const staffOptions = copyFrom ? staff.items.filter((person) => person.status === "active") : staff.items;
+  const selectedStaff = copyFrom && !staffOptions.some((person) => person.id === value.staff_id)
+    ? ""
+    : value.staff_id;
   const timeError =
     value.start && value.end && value.end <= value.start
       ? {
@@ -59,6 +72,10 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
           errors: [{ field: "end_at", message: t("dispatch.endAfterStart") }],
         }
       : null;
+  const formTime = (field, local) => {
+    const original = copyFrom?.[field];
+    return original && local === utcToLocal(original, zone) ? original : localToUtc(local, zone);
+  };
   const submit = async (e) => {
     e.preventDefault();
     if (timeError) return;
@@ -69,14 +86,14 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
         body: {
           site_id: value.site_id,
           mode: value.mode,
-          staff_id: value.staff_id,
+          staff_id: selectedStaff,
           headcount: Number(value.headcount),
           channels: ["whatsapp", "voice"].filter((c) => value[c]),
           message: value.message,
-          start_at: localToUtc(value.start, zone),
-          end_at: localToUtc(value.end, zone),
+          start_at: formTime("start_at", value.start),
+          end_at: formTime("end_at", value.end),
           ...(value.deadline
-            ? { deadline_at: localToUtc(value.deadline, zone) }
+            ? { deadline_at: formTime("deadline_at", value.deadline) }
             : {}),
           ...(preset?.open_shift_ids
             ? { open_shift_ids: preset.open_shift_ids }
@@ -91,8 +108,10 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
     }
   };
   return (
-    <Modal title={t("dispatch.createTitle")} onClose={onClose}>
+    <Modal title={t(copyFrom ? "dispatch.copyRequest" : "dispatch.createTitle")} onClose={onClose}>
       <p className="muted">{t("dispatch.timeHint")}</p>
+      {copyFrom && Date.parse(copyFrom.start_at) <= Date.now() &&
+        <p className="muted">{t("dispatch.copyPastShift")}</p>}
       <ErrorNotice error={timeError ?? error ?? staffError} />
       <form onSubmit={submit}>
         <Field
@@ -105,15 +124,13 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
               staff_id: preset?.staff_id ?? "",
             }))
           }
-          options={sites
-            .filter((s) => s.status === "active")
-            .filter(
-              (s) =>
-                value.mode !== "direct" ||
-                !preset?.site_ids ||
-                preset.site_ids.includes(s.id),
-            )
-            .map((s) => [s.id, s.name])}
+          required={Boolean(copyFrom)}
+          options={[
+            ...(!value.site_id ? [["", t("dispatch.choose")]] : []),
+            ...sites.filter((s) => s.status === "active")
+              .filter((s) => value.mode !== "direct" || !preset?.site_ids || preset.site_ids.includes(s.id))
+              .map((s) => [s.id, s.name]),
+          ]}
         />
         <div className="form-grid">
           <Field
@@ -143,11 +160,11 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
             <Field
               key={value.site_id}
               label={t("dispatch.staff")}
-              value={value.staff_id ?? ""}
+              value={selectedStaff}
               onChange={change("staff_id")}
               options={[
                 ["", t("dispatch.choose")],
-                ...staff.items.map((s) => [s.id, s.name]),
+                ...staffOptions.map((s) => [s.id, s.name]),
               ]}
             />
           ) : (
@@ -197,9 +214,10 @@ export function RequestForm({ sites, preset, onClose, onDone }) {
           <button
             disabled={
               busy ||
+              !value.site_id ||
               Boolean(timeError) ||
               Boolean(staffError) ||
-              (value.mode === "direct" && (staffLoading || !value.staff_id))
+              (value.mode === "direct" && (staffLoading || !selectedStaff))
             }
           >
             {busy ? t("dispatch.creating") : t("dispatch.createDraft")}
@@ -344,12 +362,13 @@ function VoiceAttempts({ attempts, zone }) {
     </>
   );
 }
-function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
+function RequestDetail({ id, onBack, onDraftCreated, sites, notify, messagingMode }) {
   useI18n();
   const [data, setData] = useState(null),
     [error, setError] = useState(null),
     [confirm, setConfirm] = useState(null),
     [editing, setEditing] = useState(null),
+    [copyFrom, setCopyFrom] = useState(null),
     [busy, setBusy] = useState(false),
     [voicePreparing, setVoicePreparing] = useState(false),
     [linked, setLinked] = useState([]),
@@ -452,6 +471,13 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
               {t("dispatch.extendDeadline")}
             </button>
           )}
+          <button
+            className="quiet"
+            disabled={busy || !sites.some((site) => site.status === "active")}
+            onClick={() => setCopyFrom(data)}
+          >
+            {t("dispatch.copyRequest")}
+          </button>
           {["draft", "open", "filled"].includes(data.status) && (
             <button className="quiet" onClick={() => setConfirm("cancel")}>
               {t("dispatch.cancelRequest")}
@@ -695,6 +721,14 @@ function RequestDetail({ id, onBack, sites, notify, messagingMode }) {
           ))}
         </details>
       )}
+      {copyFrom && (
+        <RequestForm
+          sites={sites}
+          copyFrom={copyFrom}
+          onClose={() => setCopyFrom(null)}
+          onDone={onDraftCreated}
+        />
+      )}
       {editing && (
         <RequestEditor
           request={editing.request}
@@ -793,7 +827,9 @@ export function Requests({ notify, preset, onPresetUsed, messagingMode }) {
   if (selected)
     return (
       <RequestDetail
+        key={selected}
         messagingMode={messagingMode}
+        onDraftCreated={done}
         id={selected}
         sites={sites.items}
         notify={notify}

@@ -228,6 +228,8 @@
   "dispatch.result": "Response",
   "dispatch.assignmentCancelled": "Assignment cancelled",
   "dispatch.whatsappReply": "WhatsApp reply time",
+  "dispatch.copyRequest": "Duplicate work request",
+  "dispatch.copyPastShift": "The original shift has started. Enter new start and end times.",
   "dispatch.editRequest": "Edit work request",
   "dispatch.extendDeadline": "Extend reply deadline",
   "dispatch.currentDeadline": "Current deadline {{time}} (Hong Kong time)",

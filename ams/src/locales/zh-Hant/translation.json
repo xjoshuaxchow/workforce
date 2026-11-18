@@ -228,6 +228,8 @@
   "dispatch.result": "接單結果",
   "dispatch.assignmentCancelled": "分配已取消",
   "dispatch.whatsappReply": "WhatsApp 回覆時間",
+  "dispatch.copyRequest": "複製工單",
+  "dispatch.copyPastShift": "原定更次已過，請為新工單填寫開始及結束時間。",
   "dispatch.editRequest": "編輯工單",
   "dispatch.extendDeadline": "延長截止時間",
   "dispatch.currentDeadline": "目前截止時間為 {{time}}（香港時間）",

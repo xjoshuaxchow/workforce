@@ -292,6 +292,7 @@ export function useList(path, version = 0, load = api) {
     [error, setError] = useState(null),
     [loading, setLoading] = useState(true);
   useEffect(() => {
+    if (!path) return;
     let active = true;
     setLoading(true);
     load(path)
@@ -310,8 +311,8 @@ export function useList(path, version = 0, load = api) {
   const current = data.sourcePath === path;
   return {
     data: current ? data : { items: [], total: 0 },
-    error,
-    loading: loading || !current,
+    error: path ? error : null,
+    loading: Boolean(path) && (loading || !current),
   };
 }
 export const useAllList = (path, version = 0) =>
