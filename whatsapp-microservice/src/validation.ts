@@ -64,7 +64,7 @@ const parameter = z
         message: `Missing ${p.type} parameter value`,
       });
   });
-export const templateComponent = z
+const standardTemplateComponent = z
   .object({
     type: z.enum(["header", "body", "button"]),
     sub_type: z.enum(["quick_reply", "url", "copy_code"]).optional(),
@@ -74,6 +74,21 @@ export const templateComponent = z
     parameters: z.array(parameter).max(100),
   })
   .strict();
+const flowTemplateComponent = z.strictObject({
+  type: z.literal("button"),
+  sub_type: z.literal("flow"),
+  index: z.union([z.string().regex(/^\d$/), z.number().int().min(0).max(9)]),
+  parameters: z.tuple([
+    z.strictObject({
+      type: z.literal("action"),
+      action: z.strictObject({ flow_token: z.string().min(1).max(256) }),
+    }),
+  ]),
+});
+export const templateComponent = z.union([
+  standardTemplateComponent,
+  flowTemplateComponent,
+]);
 const template = z
   .object({
     name: z.string().regex(/^[a-z0-9_]{1,512}$/),

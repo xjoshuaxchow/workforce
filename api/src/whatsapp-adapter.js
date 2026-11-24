@@ -6,6 +6,7 @@ import {
   createWhatsAppClient,
   buildWhatsAppMessage,
   parseWhatsAppReply,
+  isWhatsAppFlowReply,
   whatsAppStatus,
   WhatsAppServiceError,
   requireApprovedTemplate,
@@ -366,7 +367,10 @@ export function createWhatsAppAdapter({
             incoming.contact_id === contact &&
             reply.sender === record.to_number &&
             incoming.contact_id === record.to_number &&
-            reply.contextId === record.meta_id;
+            reply.contextId === record.meta_id &&
+            isWhatsAppFlowReply(incoming.content) === record.payload.template.components.some(
+              (component) => component.sub_type === "flow",
+            );
           await receiveOnce(
             {
               event_id: "whatsapp:incoming:" + incoming.id,

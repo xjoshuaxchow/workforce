@@ -27,6 +27,7 @@ const definition = z
     name: z.string().regex(/^[a-z0-9_]{1,512}$/),
     language: z.string().regex(/^[a-z]{2,3}(?:_[A-Z]{2})?$/),
     body: z.array(variable).max(100),
+    flow: z.literal(true).optional(),
     buttons: z
       .object({
         accept: z.number().int().min(0).max(9),
@@ -60,11 +61,11 @@ export function parseWhatsAppConnection(env = process.env) {
 export function parseWhatsAppTemplate(name, value) {
   const parsed = definition.safeParse(value);
   if (!parsed.success) throw Error("WhatsApp template configuration is invalid or incomplete");
-  const buttons = parsed.data.buttons;
+  const { buttons, flow } = parsed.data;
   if (name === "shift_offer_v1") {
-    if (!buttons || buttons.accept === buttons.decline)
-      throw Error("WhatsApp offer template needs distinct accept and decline buttons");
-  } else if (buttons) {
+    if (flow ? buttons : !buttons || buttons.accept === buttons.decline)
+      throw Error("WhatsApp offer template needs one Flow or distinct accept and decline buttons");
+  } else if (buttons || flow) {
     throw Error("Info-only WhatsApp templates must not contain reply buttons");
   }
   return parsed.data;
@@ -101,7 +102,17 @@ export function buildWhatsAppMessage(payload, templates) {
         return { type: "text", text: value };
       }),
     });
-  if (payload.options?.length) {
+  if (payload.options?.length && template.flow) {
+    components.push({
+      type: "button",
+      sub_type: "flow",
+      index: "0",
+      parameters: [{
+        type: "action",
+        action: { flow_token: `workforce-flow:${payload.correlation_id}` },
+      }],
+    });
+  } else if (payload.options?.length) {
     if (!template.buttons)
       throw Error("WhatsApp offer template needs reply buttons");
     for (const [option, index] of [
@@ -126,25 +137,51 @@ export function buildWhatsAppMessage(payload, templates) {
     template: { name: template.name, language: template.language, components },
   };
 }
+const flowResponse = z.object({
+  flow_token: z.string().regex(/^workforce-flow:[^:]+$/),
+  decision: z.enum(["ACCEPT", "DECLINE"]),
+});
+
+export function isWhatsAppFlowReply(message) {
+  return message?.type === "interactive" && message.interactive?.type === "nfm_reply";
+}
+
 export function parseWhatsAppReply(message) {
-  const payload =
-    message?.type === "button"
-      ? message.button?.payload
-      : message?.type === "interactive"
-        ? message.interactive?.button_reply?.id
-        : null;
-  if (typeof payload !== "string") return null;
-  const match = /^workforce:([^:]+):(ACCEPT|DECLINE)$/.exec(payload);
   if (
-    !match ||
-    !z.uuid().safeParse(match[1]).success ||
-    typeof message.from !== "string" ||
+    typeof message?.from !== "string" ||
     typeof message.context?.id !== "string"
-  )
-    return null;
+  ) return null;
+
+  let attemptId, optionId;
+  if (isWhatsAppFlowReply(message)) {
+    const raw = message.interactive.nfm_reply?.response_json;
+    if (typeof raw !== "string" || raw.length > 4096) return null;
+    let response;
+    try {
+      response = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const result = flowResponse.safeParse(response);
+    if (!result.success) return null;
+    attemptId = result.data.flow_token.slice("workforce-flow:".length);
+    optionId = result.data.decision;
+  } else {
+    const payload =
+      message.type === "button"
+        ? message.button?.payload
+        : message.type === "interactive"
+          ? message.interactive?.button_reply?.id
+          : null;
+    if (typeof payload !== "string") return null;
+    const match = /^workforce:([^:]+):(ACCEPT|DECLINE)$/.exec(payload);
+    if (!match) return null;
+    [, attemptId, optionId] = match;
+  }
+  if (!z.uuid().safeParse(attemptId).success) return null;
   return {
-    attemptId: match[1],
-    optionId: match[2],
+    attemptId,
+    optionId,
     sender: message.from.replace(/^\+/, ""),
     contextId: message.context.id,
   };
@@ -167,6 +204,7 @@ export class WhatsAppServiceError extends Error {
     this.code = code;
     this.retryable = retryable;
     this.metaCode = metaCode;
+    this.metaSubcode = metaUserError.subcode;
     this.metaTitle = metaUserError.title;
     this.metaExplanation = metaUserError.explanation;
   }
@@ -221,6 +259,9 @@ export function createWhatsAppClient(
             ? body.error.details.code
             : undefined,
           code === "META_ERROR" ? {
+            subcode: Number.isSafeInteger(body?.error?.details?.error_subcode)
+              ? body.error.details.error_subcode
+              : undefined,
             title: safeMetaText(body?.error?.details?.error_user_title),
             explanation: safeMetaText(body?.error?.details?.error_user_msg),
           } : undefined,
@@ -265,13 +306,10 @@ export async function requireApprovedTemplate(client, message) {
     components.some((c) => !["BODY", "BUTTONS"].includes(c.type)) ||
     count !== body.length ||
     new Set(matches).size !== count ||
-    (sentButtons.length
-      ? buttons.length !== 2 ||
-        sentButtons.length !== 2 ||
-        sentButtons.some(
-          (c) => buttons[Number(c.index)]?.type !== "QUICK_REPLY",
-        )
-      : buttons.length !== 0)
+    buttons.length !== sentButtons.length ||
+    sentButtons.some((button) =>
+      buttons[Number(button.index)]?.type !== button.sub_type.toUpperCase(),
+    )
   )
     throw new WhatsAppServiceError(400, "TEMPLATE_SHAPE_MISMATCH", false);
 }

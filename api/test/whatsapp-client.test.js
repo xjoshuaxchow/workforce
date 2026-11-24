@@ -214,3 +214,52 @@ test("Configured WhatsApp mappings still require distinct offer buttons and info
   assert.throws(() => wa.parseWhatsAppTemplate("shift_confirmed_v1", { ...templates.shift_confirmed_v1, buttons: { accept: 0, decline: 1 } }), /Info-only/);
   assert.equal(wa.parseWhatsAppTemplate("shift_offer_v1", templates.shift_offer_v1).name, "shift_offer_v1");
 });
+
+test("WhatsApp Flow offers send one CTA with a scoped token", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const mapping = {
+    ...templates,
+    shift_offer_v1: { name: "shift_flow", language: "zh_HK", body: [], flow: true },
+  };
+  wa.parseWhatsAppConfig(env, mapping);
+  const message = wa.buildWhatsAppMessage({
+    correlation_id: id,
+    to: "+6591234567",
+    template: "shift_offer_v1",
+    variables: {},
+    options: [{ id: "ACCEPT" }, { id: "DECLINE" }],
+  }, mapping);
+  assert.deepEqual(message.template.components, [{
+    type: "button", sub_type: "flow", index: "0",
+    parameters: [{ type: "action", action: { flow_token: "workforce-flow:" + id } }],
+  }]);
+  const approved = {
+    name: "shift_flow", language: "zh_HK", status: "APPROVED",
+    components: [{ type: "BODY", text: "Shift" }, { type: "BUTTONS", buttons: [{ type: "FLOW" }] }],
+  };
+  await wa.requireApprovedTemplate({ request: async () => ({ data: [approved] }) }, message);
+  approved.components[1].buttons = [{ type: "QUICK_REPLY" }, { type: "QUICK_REPLY" }];
+  await assert.rejects(
+    wa.requireApprovedTemplate({ request: async () => ({ data: [approved] }) }, message),
+    { code: "TEMPLATE_SHAPE_MISMATCH" },
+  );
+});
+
+test("WhatsApp parses Flow selections only with one valid choice and original message ID", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const inbound = (response) => ({
+    type: "interactive",
+    from: "6591234567",
+    context: { id: "wamid.offer" },
+    interactive: { type: "nfm_reply", nfm_reply: { response_json: JSON.stringify(response) } },
+  });
+  for (const decision of ["ACCEPT", "DECLINE"]) {
+    const message = inbound({ flow_token: "workforce-flow:" + id, decision });
+    assert.deepEqual(wa.parseWhatsAppReply(message), {
+      attemptId: id, optionId: decision, sender: "6591234567", contextId: "wamid.offer",
+    });
+    assert.equal(wa.parseWhatsAppReply({ ...message, context: undefined }), null);
+  }
+  assert.equal(wa.parseWhatsAppReply(inbound({ flow_token: "workforce-flow:" + id, decision: ["ACCEPT", "DECLINE"] })), null);
+  assert.equal(wa.parseWhatsAppReply(inbound({ flow_token: "unused", decision: "ACCEPT" })), null);
+});

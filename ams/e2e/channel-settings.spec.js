@@ -209,3 +209,42 @@ test('WhatsApp-only draft exposes the required recorded voice followup checklist
   await expect(page.getByText('尚欠錄音',{exact:true})).toBeVisible();
   await expect(page.getByLabel('試聽通知（粵語）',{exact:true})).toHaveValue('confirmation');
 });
+
+test("Admin can map approved single-choice invitations for Cantonese and English", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/settings/whatsapp/templates?*", async (route) => {
+    const language = new URL(route.request().url()).searchParams.get("language");
+    await route.fulfill({ json: {
+      data: [{
+        id: language === "zh_HK" ? "20001" : "20002",
+        name: language === "zh_HK" ? "cantonese_shift_flow" : "english_shift_flow",
+        language,
+        status: "APPROVED",
+        components: [
+          { type: "BODY", text: "Work invitation {{1}} for {{2}}." },
+          { type: "BUTTONS", buttons: [{ type: "FLOW", text: "Respond to shift" }] },
+        ],
+      }],
+      nextCursor: null,
+    } });
+  });
+  await page.getByRole("button", { name: "通訊設定", exact: true }).click();
+  await page.getByRole("button", { name: "WhatsApp 模板", exact: true }).click();
+  for (const language of ["yue", "en"]) {
+    await page.getByLabel("內容語言", { exact: true }).selectOption(language);
+    await page.getByRole("button", { name: "讀取微服務模板" }).click();
+    await page.getByRole("button", { name: "使用此模板" }).click();
+    await expect(page.getByText("此邀請使用 WhatsApp Flow，只會記錄第一次有效提交。")).toBeVisible();
+    await expect(page.getByLabel("接受按鈕 index")).toHaveCount(0);
+  }
+  const saved = page.waitForResponse((response) =>
+    response.url().endsWith("/api/settings/channels") && response.request().method() === "PATCH",
+  );
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(200);
+  const { config } = await response.json();
+  expect(config.templates.yue.shift_offer_v1).toMatchObject({ name: "cantonese_shift_flow", flow: true });
+  expect(config.templates.en.shift_offer_v1).toMatchObject({ name: "english_shift_flow", flow: true });
+  expect(config.templates.en.shift_offer_v1.buttons).toBeUndefined();
+});

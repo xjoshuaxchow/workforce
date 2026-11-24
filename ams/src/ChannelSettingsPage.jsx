@@ -42,20 +42,25 @@ const editable = (config) => {
   return copy;
 };
 export const RequestVoiceSpeech = RequestVoicePreview;
+const remoteTemplateButtons = (template) =>
+  template?.components?.find((component) => component.type === "BUTTONS")?.buttons ?? [];
 function TemplateDialog({ language, purpose, template, onClose, onDone }) {
   useI18n();
   const offer = purpose === "shift_offer_v1",
+    flow = offer && (!template || remoteTemplateButtons(template)[0]?.type === "FLOW"),
     bodyComponent = template?.components?.find((x) => x.type === "BODY");
-  const [name, setName] = useState(template?.name ?? ""),
+  const [name, setName] = useState(
+    template?.name ?? (flow ? `workforce_shift_offer_flow_${language}_v1` : ""),
+  ),
     [locale, setLocale] = useState(
       template?.language ??
-        (language === "yue" ? "zh_HK" : language === "zh" ? "zh_CN" : "en"),
+        (language === "yue" ? "zh_HK" : flow ? "en_US" : "en"),
     ),
     [body, setBody] = useState(
       bodyComponent?.text ??
         (language === "en"
           ? offer
-            ? "Hello {{1}}, a new shift invitation is available for you at {{2}} on {{3}}. The shift starts at {{4}} and ends at {{5}}. Please review the shift details and use the buttons below to accept or decline this invitation."
+            ? "Hello {{1}}, a new shift invitation is available for you at {{2}} on {{3}}. The shift starts at {{4}} and ends at {{5}}. Please review the shift details and tap the button below to accept or decline this invitation."
             : "Hello {{1}}, this is an update about your work schedule at {{2}} on {{3}}. The scheduled start time is {{4}} and the scheduled end time is {{5}}. Please review these details and contact your supervisor if you have any questions."
           : offer
             ? "你好 {{1}}，現有一個工作更次邀請。工作地點為 {{2}}，工作日期為 {{3}}，開始時間為 {{4}}，結束時間為 {{5}}。請仔細核對以上工作安排，再按下方按鈕接受或拒絕邀請。如有疑問，請聯絡你的主管。"
@@ -89,10 +94,11 @@ function TemplateDialog({ language, purpose, template, onClose, onDone }) {
             body,
             examples: numbers.map((n) => examples[n] ?? ""),
             offer,
+            ...(flow ? { flow: true } : {}),
           },
         },
       );
-      onDone();
+      onDone(locale);
     } catch (e) {
       setError(e);
     } finally {
@@ -105,7 +111,7 @@ function TemplateDialog({ language, purpose, template, onClose, onDone }) {
       onClose={onClose}
     >
       <p className="muted">
-        {t("template.metaHint")}
+        {t(flow ? "template.flowCreateHint" : "template.metaHint")}
       </p>
       <ErrorNotice error={error} />
       <form onSubmit={submit}>
@@ -167,6 +173,7 @@ function TemplateSettings({ draft, setDraft }) {
     [purpose, setPurpose] = useState("shift_offer_v1"),
     [remote, setRemote] = useState([]),
     [cursor, setCursor] = useState(null),
+    [remoteLocale, setRemoteLocale] = useState(null),
     [error, setError] = useState(null),
     [busy, setBusy] = useState(false),
     [dialog, setDialog] = useState(null),
@@ -184,15 +191,16 @@ function TemplateSettings({ draft, setDraft }) {
         },
       },
     }));
-  const fetchTemplates = async (more = false) => {
+  const fetchTemplates = async (more = false, locale = value.language) => {
     setBusy(true);
     setError(null);
     try {
       const r = await api(
-        `/settings/whatsapp/templates?language=${encodeURIComponent(value.language)}${more && cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`,
+        `/settings/whatsapp/templates?language=${encodeURIComponent(locale)}${more && cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`,
       );
       setRemote((old) => (more ? [...old, ...r.data] : r.data));
       setCursor(r.nextCursor);
+      setRemoteLocale(locale);
     } catch (e) {
       setError(e);
     } finally {
@@ -206,10 +214,10 @@ function TemplateSettings({ draft, setDraft }) {
       components.some((c) => !["BODY", "BUTTONS"].includes(c.type))
     )
       return false;
-    const buttons = components.find((c) => c.type === "BUTTONS")?.buttons ?? [];
-    return offer
-      ? buttons.length === 2 && buttons.every((b) => b.type === "QUICK_REPLY")
-      : buttons.length === 0;
+    const buttons = remoteTemplateButtons(row);
+    if (!offer) return buttons.length === 0;
+    return (buttons.length === 1 && buttons[0].type === "FLOW") ||
+      (buttons.length === 2 && buttons.every((button) => button.type === "QUICK_REPLY"));
   };
   const choose = (row) => {
     const text = row.components.find((c) => c.type === "BODY")?.text ?? "",
@@ -217,7 +225,7 @@ function TemplateSettings({ draft, setDraft }) {
         0,
         ...[...text.matchAll(/\{\{(\d+)\}\}/g)].map((x) => Number(x[1])),
       );
-    const fields = variableKeys;
+    const fields = variableKeys, flow = remoteTemplateButtons(row)[0]?.type === "FLOW";
     update({
       name: row.name,
       language: row.language,
@@ -225,7 +233,10 @@ function TemplateSettings({ draft, setDraft }) {
         { length: count },
         (_, i) => value.body[i] ?? fields[i] ?? "message",
       ),
-      ...(offer ? { buttons: { accept: 0, decline: 1 } } : {}),
+      ...(offer ? {
+        flow: flow ? true : undefined,
+        buttons: flow ? undefined : { accept: 0, decline: 1 },
+      } : {}),
     });
   };
   return (
@@ -291,7 +302,8 @@ function TemplateSettings({ draft, setDraft }) {
       >
         {t("template.addVariable")}
       </button>
-      {offer && (
+      {offer && value.flow && <p className="muted">{t("template.flowMapped")}</p>}
+      {offer && !value.flow && (
         <div className="form-grid">
           <Field
             label={t("template.acceptIndex")}
@@ -344,6 +356,9 @@ function TemplateSettings({ draft, setDraft }) {
                   <small>
                     {row.components?.find((c) => c.type === "BODY")?.text}
                   </small>
+                  {remoteTemplateButtons(row)[0]?.type === "FLOW" && (
+                    <small>{t("template.flowType")}</small>
+                  )}
                 </td>
                 <td>{row.language}</td>
                 <td>{row.status}</td>
@@ -360,7 +375,10 @@ function TemplateSettings({ draft, setDraft }) {
                     <button
                       type="button"
                       className="text-button"
-                      disabled={!compatible(row)}
+                      disabled={!compatible(row) || (
+                        remoteTemplateButtons(row)[0]?.type === "FLOW" &&
+                        !remoteTemplateButtons(row)[0].flow_id
+                      )}
                       onClick={() => setDialog(row)}
                     >
                       {t("template.modify")}
@@ -383,7 +401,7 @@ function TemplateSettings({ draft, setDraft }) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => fetchTemplates(true)}
+          onClick={() => fetchTemplates(true, remoteLocale)}
         >
           {t("template.loadMore")}
         </button>
@@ -394,9 +412,9 @@ function TemplateSettings({ draft, setDraft }) {
           purpose={purpose}
           template={dialog.id ? dialog : null}
           onClose={() => setDialog(null)}
-          onDone={() => {
+          onDone={(locale) => {
             setDialog(null);
-            fetchTemplates();
+            fetchTemplates(false, locale);
           }}
         />
       )}

@@ -51,6 +51,7 @@ const template = z
     name: z.string().regex(/^[a-z0-9_]{0,512}$/),
     language: z.string().regex(/^[a-z]{2,3}(?:_[A-Z]{2})?$/),
     body: z.array(variables).max(100),
+    flow: z.literal(true).optional(),
     buttons: z
       .object({
         accept: z.number().int().min(0).max(9),

@@ -832,7 +832,27 @@ test("WhatsApp template CRUD uses the configured microservice Bearer key and nev
       (await api("DELETE", "/api/settings/whatsapp/templates/12345")).status,
       200,
     );
-    assert.equal(calls.length, 4);
+    for (const [locale, labels] of [
+      ["zh_HK", ["接受", "拒絕"]],
+      ["en_US", ["Accept", "Decline"]],
+    ]) {
+      assert.equal(
+        (await api("POST", "/api/settings/whatsapp/templates", {
+          ...body, language: locale, flow: true,
+        })).status,
+        201,
+      );
+      const buttons = calls.at(-1).data.components[1].buttons;
+      assert.equal(buttons.length, 1);
+      assert.equal(buttons[0].type, "FLOW");
+      const children = JSON.parse(buttons[0].flow_json).screens[0].layout.children[0].children;
+      const choice = children.find((component) => component.type === "RadioButtonsGroup");
+      assert.equal(choice.required, true);
+      assert.deepEqual(choice["data-source"], [
+        { id: "ACCEPT", title: labels[0] }, { id: "DECLINE", title: labels[1] },
+      ]);
+    }
+    assert.equal(calls.length, 6);
     assert.ok(
       calls.every(
         (c) =>

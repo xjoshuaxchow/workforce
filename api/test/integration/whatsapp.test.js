@@ -162,7 +162,7 @@ afterEach(async () => {
     service = null;
   }
 });
-async function setup() {
+async function setup(templates = definitions) {
   assert.equal(typeof implementation.createWhatsAppAdapter, "function");
   wa = implementation.createWhatsAppAdapter({
     pool,
@@ -173,7 +173,7 @@ async function setup() {
         WHATSAPP_SERVICE_URL: serviceUrl,
         WHATSAPP_SERVICE_API_KEY: "local-service-key",
       },
-      definitions,
+      templates,
     ),
   });
   server = createApp({
@@ -347,6 +347,45 @@ test("AC-W-04-01 AC-RH-02-01 WhatsApp accepts once through unified inbox and pre
     "1",
   );
 });
+for (const [first, second, result] of [
+  ["ACCEPT", "DECLINE", "accept"],
+  ["DECLINE", "ACCEPT", "decline"],
+]) {
+  test(`WhatsApp Flow keeps ${first} when a later submission says ${second}`, async () => {
+    const { buttons, ...offerMapping } = definitions.shift_offer_v1;
+    await setup({ ...definitions, shift_offer_v1: { ...offerMapping, flow: true } });
+    const request = await offer();
+    const attempt = request.candidates[0].attempts[0];
+    await run();
+    const inbound = (decision) => ({
+      type: "interactive",
+      interactive: {
+        type: "nfm_reply",
+        nfm_reply: {
+          response_json: JSON.stringify({ flow_token: "workforce-flow:" + attempt.id, decision }),
+        },
+      },
+    });
+    await reply(attempt, second);
+    await reply(attempt, second, {
+      ...inbound(second),
+      context: { id: "wamid.different-offer" },
+    });
+    await poll();
+    assert.equal((await detail(request.id)).candidates[0].final_response, null);
+    await reply(attempt, first, inbound(first));
+    await poll();
+    await reply(attempt, second, inbound(second));
+    await poll();
+    const updated = await detail(request.id);
+    assert.equal(updated.candidates[0].final_response, result);
+    const expectedAssignments = first === "ACCEPT" ? 1 : 0;
+    assert.equal(updated.accepted, expectedAssignments);
+    const { rows } = await pool.query("SELECT count(*) FROM assignments");
+    assert.equal(Number(rows[0].count), expectedAssignments);
+  });
+}
+
 test("WhatsApp ignores wrong sender context unscoped buttons and free text", async () => {
   await setup();
   const r = await offer(),

@@ -650,6 +650,10 @@ export function createApp({
           message = error.metaTitle || error.metaExplanation
             ? "Meta 未接受這項請求，請依下方原因修正。"
             : "Meta 無法存取資源或請求參數不正確。請核對 WABA ID、系統使用者的 WhatsApp 帳戶資產授權及範本設定。";
+        } else if (error.metaCode === 139000 && error.metaSubcode === 4233020) {
+          status = 400;
+          reason = "whatsapp_flow_integrity_blocked";
+          message = "Meta 未允許發布 WhatsApp Flow。請在 Meta 商業安全中心核對商業驗證及帳戶資格。";
         } else if ([10, 200].includes(error.metaCode)) {
           status = 400;
           reason = "whatsapp_meta_permission_denied";

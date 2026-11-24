@@ -183,3 +183,22 @@ describe("durable state defaults", () => {
     }
   });
 });
+
+it("keeps the Flow action token on an outgoing template and rejects it on a quick reply", () => {
+  const component = {
+    type: "button",
+    sub_type: "flow",
+    index: "0",
+    parameters: [{ type: "action", action: { flow_token: "shift-invite-token" } }],
+  };
+  const message = {
+    type: "template",
+    to: "6591234567",
+    template: { name: "shift_flow", language: "en_US", components: [component] },
+  };
+  expect(messageSchema.parse(message)).toEqual(message);
+  expect(messageSchema.safeParse({
+    ...message,
+    template: { ...message.template, components: [{ ...component, sub_type: "quick_reply" }] },
+  }).success).toBe(false);
+});

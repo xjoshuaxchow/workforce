@@ -51,6 +51,7 @@ for (const scenario of [
   { name: "expired Meta token", expectedStatus: 400, status: 502, code: "META_ERROR", details: { code: 190, error_subcode: 463 }, reason: "whatsapp_access_token_invalid", hint: /WHATSAPP_ACCESS_TOKEN/ },
   { name: "wrong Meta resource", expectedStatus: 400, status: 422, code: "META_ERROR", details: { code: 100 }, reason: "whatsapp_meta_request_invalid", hint: /WABA/ },
   { name: "missing Meta permission", expectedStatus: 400, status: 502, code: "META_ERROR", details: { code: 200 }, reason: "whatsapp_meta_permission_denied", hint: /權限/ },
+  { name: "Flow publishing integrity block", expectedStatus: 400, status: 422, code: "META_ERROR", details: { code: 139000, error_subcode: 4233020 }, reason: "whatsapp_flow_integrity_blocked", hint: /商業驗證/ },
   { name: "microservice authentication failure", expectedStatus: 400, status: 401, code: "UNAUTHORIZED", reason: "whatsapp_service_auth_failed", hint: /API key/ },
   { name: "unreachable microservice", expectedStatus: 502, status: 0, code: "UNAVAILABLE", reason: "whatsapp_service_unavailable", hint: /服務網址/ },
   { name: "untrusted Meta error code", expectedStatus: 502, status: 502, code: "META_ERROR", details: { code: "190 fixture-private-token" }, reason: "whatsapp_meta_error", hint: /Meta/ },
