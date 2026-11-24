@@ -162,7 +162,7 @@ afterEach(async () => {
     service = null;
   }
 });
-async function setup() {
+async function setup(language = "en") {
   assert.equal(typeof implementation.createWhatsAppAdapter, "function");
   wa = implementation.createWhatsAppAdapter({
     pool,
@@ -208,6 +208,7 @@ async function setup() {
         await api("POST", "/api/staff", {
           name,
           mobile,
+          language,
           whatsapp_opt_in: true,
           whatsapp_opt_in_source: "test",
         })
@@ -347,6 +348,50 @@ test("AC-W-04-01 AC-RH-02-01 WhatsApp accepts once through unified inbox and pre
     "1",
   );
 });
+for (const [language, message] of [
+  ["yue", "你已接受這個工作，不能再更改"],
+  ["en", "You have already accepted this job and cannot change your response."],
+]) {
+  test(`WhatsApp explains that an accepted shift cannot be declined again in ${language}`, async () => {
+    await setup(language);
+    const request = await offer();
+    const attempt = request.candidates[0].attempts[0];
+    const notices = () => [...messages.values()].filter((entry) => entry.content.type === "text");
+    await run();
+    await reply(attempt);
+    await run();
+    assert.equal(notices().length, 0);
+    await reply(attempt, "DECLINE", { context: { id: "wamid.another-offer" } });
+    await poll();
+    await run();
+    assert.equal(notices().length, 0);
+    const incomingDecline = await reply(attempt, "DECLINE");
+    await poll();
+    hooks.drop = true;
+    await run();
+    await poll(5000);
+    await run();
+    assert.equal(notices().length, 1);
+    const deliveries = requests.filter((entry) => entry.body?.type === "text");
+    assert.equal(deliveries.length, 2);
+    assert.equal(deliveries[0].headers["idempotency-key"], deliveries[1].headers["idempotency-key"]);
+    const { rows: replyJobs } = await pool.query(
+      "SELECT status FROM jobs WHERE kind='whatsapp-locked-reply'",
+    );
+    assert.deepEqual(replyJobs, [{ status: "done" }]);
+    assert.deepEqual(notices()[0].content, {
+      to: "6591234567",
+      type: "text",
+      text: { body: message },
+      replyTo: incomingDecline.meta_id,
+    });
+    const updated = await detail(request.id);
+    assert.equal(updated.candidates[0].final_response, "accept");
+    assert.equal(updated.accepted, 1);
+    assert.equal((await pool.query("SELECT count(*) FROM assignments")).rows[0].count, "1");
+  });
+}
+
 test("WhatsApp ignores wrong sender context unscoped buttons and free text", async () => {
   await setup();
   const r = await offer(),

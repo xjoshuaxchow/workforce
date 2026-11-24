@@ -10,6 +10,10 @@ import {
   WhatsAppServiceError,
   requireApprovedTemplate,
 } from "./whatsapp-client.js";
+const acceptedReply = {
+  yue: "你已接受這個工作，不能再更改",
+  en: "You have already accepted this job and cannot change your response.",
+};
 const system = { role: "admin", actor_type: "system", id: null };
 const accepted = z.object({ messageIds: z.array(z.uuid()).length(1) });
 const outgoing = z.object({
@@ -218,6 +222,28 @@ export function createWhatsAppAdapter({
     }
     await bind(record, result);
   }
+  async function sendLockedReply(attemptId, replyTo, key) {
+    const record = (
+      await pool.query(
+        `SELECT w.to_number,coalesce(a.language_snapshot,s.language) AS language
+           FROM whatsapp_submissions w JOIN attempts a ON a.id=w.attempt_id
+           JOIN staff s ON s.id=a.staff_id WHERE w.attempt_id=$1`,
+        [attemptId],
+      )
+    ).rows[0];
+    if (!record)
+      throw new WhatsAppServiceError(404, "ORIGINAL_OFFER_NOT_FOUND", false);
+    const result = await client.request("POST", "/messages", {
+      key,
+      data: {
+        to: record.to_number,
+        type: "text",
+        text: { body: acceptedReply[record.language] ?? acceptedReply.yue },
+        replyTo,
+      },
+    });
+    submission(result);
+  }
   async function receiveOnce(event, raw) {
     // Existence is not completion. Finish older durable receipts before advancing.
     const pending = (
@@ -373,7 +399,13 @@ export function createWhatsAppAdapter({
               correlation_id: record.attempt_id,
               external_id: record.message_id,
               type: valid ? "reply" : "provider_ignored",
-              ...(valid ? { option_id: reply.optionId } : {}),
+              ...(valid && {
+                option_id: reply.optionId,
+                ...(typeof incoming.meta_id === "string" &&
+                  /^wamid\.\S{1,506}$/.test(incoming.meta_id) && {
+                    reply_to: incoming.meta_id,
+                  }),
+              }),
             },
             incoming,
           );
@@ -387,5 +419,5 @@ export function createWhatsAppAdapter({
       }
     }
   }
-  return { sendAttempt, poll };
+  return { sendAttempt, sendLockedReply, poll };
 }

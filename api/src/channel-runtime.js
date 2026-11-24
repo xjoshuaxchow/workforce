@@ -144,6 +144,11 @@ export function createChannelRuntime({
         ? p.whatsapp.sendAttempt(id)
         : sendMock(pool, clock, id);
     },
+    async sendLockedReply(id, replyTo, key) {
+      const p = await forAttempt(id);
+      if (!p.whatsapp) throw Error("WhatsApp service is unavailable for this offer");
+      await p.whatsapp.sendLockedReply(id, replyTo, key);
+    },
     async poll() {
       for (const p of await activeProfiles(
         "whatsapp_submissions",

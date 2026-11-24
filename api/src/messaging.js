@@ -50,10 +50,35 @@ export async function processEvent(pool, clock, eventId) {
       let status = attempt.status,
         response = null;
       const mapped = mapResponse(payload.option_id);
+      const alreadyAccepted =
+        payload.type === "reply" &&
+        mapped === "decline" &&
+        attempt.channel === "whatsapp" &&
+        attempt.purpose === "offer" &&
+        event.event_id.startsWith("whatsapp:incoming:") &&
+        typeof payload.reply_to === "string" &&
+        (
+          await db.query(
+            `SELECT 1 FROM candidates c JOIN whatsapp_submissions w ON w.attempt_id=$2
+             WHERE c.id=$1 AND c.final_response='accept' AND c.status='accepted'
+               AND w.message_id::text=$3`,
+            [attempt.candidate_id, attempt.id, payload.external_id],
+          )
+        ).rowCount > 0;
+      if (alreadyAccepted) {
+        await enqueueJob(
+          db,
+          clock,
+          "whatsapp-locked-reply",
+          { attempt_id: attempt.id, reply_to: payload.reply_to },
+          `whatsapp-locked:${event.event_id}`,
+        );
+      }
       if (
         payload.type === "reply" &&
         mapped &&
         !attempt.response &&
+        !alreadyAccepted &&
         attempt.purpose === "offer" &&
         attempt.status !== "failed"
       ) {
@@ -502,6 +527,12 @@ export async function runJobs(
           );
           continue;
         }
+      } else if (job.kind === "whatsapp-locked-reply") {
+        await whatsapp.sendLockedReply(
+          job.payload.attempt_id,
+          job.payload.reply_to,
+          job.dedupe_key,
+        );
       } else if (job.kind === "request-deadline")
         await mutate(pool, clock, (db) =>
           expireRequest(db, clock, job.payload.request_id),
